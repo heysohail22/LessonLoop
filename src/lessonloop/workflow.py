@@ -3,7 +3,7 @@ import json
 from typing import Callable, Literal
 
 from langgraph.graph import END, START, StateGraph
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from lessonloop.evaluation import Evaluation, RUBRIC_VERSION, evaluate_lesson
 from lessonloop.generation import Lesson, LessonBrief, TextModel, build_messages
@@ -23,7 +23,14 @@ class Attempt(BaseModel):
 class WorkflowResult(BaseModel):
     status: Literal['approved', 'needs_human_review', 'error']
     rubric_version: str = RUBRIC_VERSION
-    attempts: list[Attempt]
+    attempts: list[Attempt] = Field(min_length=1, max_length=MAX_ATTEMPTS)
+
+    @model_validator(mode='after')
+    def validate_approval(self) -> 'WorkflowResult':
+        latest = self.attempts[-1]
+        if self.status == 'approved' and (latest.error or not latest.lesson or not latest.evaluation or not latest.evaluation.approved):
+            raise ValueError('Approval requires a complete passing final attempt without an error.')
+        return self
 
     @property
     def final_lesson(self) -> Lesson | None:

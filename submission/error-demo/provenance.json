@@ -1,0 +1,62 @@
+{
+  "id": "3a43a82d-f8ce-4641-9427-8bffb648b126",
+  "created_at": "2026-10-21T17:05:46.876955+00:00",
+  "status": "approved",
+  "model": "gemini-3.5-flash-lite",
+  "prompt_version": "base-v1",
+  "kind": "demo",
+  "brief": {
+    "topic": "Introduction to RAG",
+    "prompt_version": "writer-v2",
+    "learner": "Class 12 graduate in India; limited English; no AI background.",
+    "goals": [
+      "Explain RAG in your own words.",
+      "Describe why external information helps an AI answer.",
+      "Trace preparation, retrieval, and generation in an example.",
+      "Identify why a RAG answer can still be wrong."
+    ],
+    "references": {
+      "R1": "https://csrc.nist.gov/glossary/term/retrieval_augmented_generation \u2014 RAG pairs a generative model with retrieval; relevant information is supplied as context for an answer.",
+      "R2": "https://docs.aws.amazon.com/bedrock/latest/userguide/kb-how-it-works.html \u2014 A common preparation method splits documents into passages and indexes them for retrieval. Retrieved passages help answer a question. Updated documents must be prepared or synced before they are searchable; updates are not guaranteed to be instant (https://docs.aws.amazon.com/bedrock/latest/userguide/kb-data-source-sync-ingest.html).",
+      "R3": "https://aws.amazon.com/what-is/retrieval-augmented-generation/ \u2014 RAG uses external knowledge without requiring retraining for each document update. It can improve answers but does not guarantee correctness; source quality and retrieval matter. The model can generate wrong information even with accurate source material (https://aws.amazon.com/blogs/machine-learning/reducing-hallucinations-in-llm-agents-with-a-verified-semantic-cache-using-amazon-bedrock-knowledge-bases/)."
+    },
+    "checkpoints": [
+      {
+        "id": "C1",
+        "condition": "Expand Retrieval-Augmented Generation and explain retrieval plus generation."
+      },
+      {
+        "id": "C2",
+        "condition": "Explain why a model may need external or updated information."
+      },
+      {
+        "id": "C3",
+        "condition": "Explain document preparation, relevant-passage retrieval, and generation using those passages."
+      },
+      {
+        "id": "C4",
+        "condition": "Include one fictional example with a question, source passage, and supported answer."
+      },
+      {
+        "id": "C5",
+        "condition": "Explain each essential technical term at first use."
+      },
+      {
+        "id": "C6",
+        "condition": "Explain that retrieval can miss relevant material and generated answers can still be wrong."
+      },
+      {
+        "id": "C7",
+        "condition": "Support core factual claims with reference IDs; contradict none of the supplied notes."
+      },
+      {
+        "id": "C8",
+        "condition": "Include an exercise and a correct explanation that tests a learning goal."
+      },
+      {
+        "id": "C9",
+        "condition": "Use beginner-friendly English without assumed AI knowledge, and explain concepts before depending on them in later sections."
+      }
+    ]
+  }
+}

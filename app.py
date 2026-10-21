@@ -1,27 +1,22 @@
 """Local LessonLoop workbench. Start with uv run streamlit run app.py."""
 import asyncio
-import os
-from pathlib import Path
+import json
 
 import streamlit as st
-from dotenv import dotenv_values
 from pydantic import ValidationError
 
 from lessonloop.generation import Draft, Lesson, generate_draft, rag_brief
 from lessonloop.gemini import GeminiModel, GenerationError
 from lessonloop.evaluation import CheckResult, Evaluation, evaluate_lesson, fingerprint, RUBRIC_VERSION
 
-from lessonloop.workflow import WorkflowResult, run_workflow
+from lessonloop.workflow import WorkflowResult
+from lessonloop.memory import Memory
+from lessonloop.settings import settings, database_path
+from lessonloop.service import run_and_remember
+from lessonloop.evolution import propose_improvements, test_improvement
 
-ROOT = Path(__file__).resolve().parent
 
 
-def settings() -> tuple[str, str]:
-    local = dotenv_values(ROOT / '.env')
-    return (
-        os.environ.get('GEMINI_API_KEY') or local.get('GEMINI_API_KEY') or '',
-        os.environ.get('GEMINI_MODEL') or local.get('GEMINI_MODEL') or '',
-    )
 
 
 async def create_draft(key: str, model_name: str) -> Draft:
@@ -40,11 +35,12 @@ async def review_draft(key: str, model_name: str, draft: Draft) -> Evaluation:
         await model.close()
 
 
-async def run_full_workflow(key: str, model_name: str, *, seed: Lesson | None = None, on_progress=None) -> WorkflowResult:
+async def run_full_workflow(key: str, model_name: str, *, seed: Lesson | None = None, on_progress=None) -> tuple[str, WorkflowResult]:
     writer = GeminiModel(api_key=key, model=model_name)
     reviewer = GeminiModel(api_key=key, model=model_name, response_type=Evaluation)
     try:
-        return await run_workflow(writer, reviewer, rag_brief(), seed=seed, on_progress=on_progress)
+        run_id, result = await run_and_remember(Memory(database_path()), writer, reviewer, model_name, seed=seed, on_progress=on_progress)
+        return run_id, result
     finally:
         await writer.close()
         await reviewer.close()
@@ -52,11 +48,12 @@ async def run_full_workflow(key: str, model_name: str, *, seed: Lesson | None = 
 
 def execute_workflow(key: str, model_name: str, seed: Lesson | None = None) -> None:
     # Clear prior outcomes before starting so a failed new run cannot show old approval.
-    for name in ('workflow', 'draft', 'evaluation', 'evaluation_hash'):
+    for name in ('workflow', 'draft', 'evaluation', 'evaluation_hash', 'run_id'):
         st.session_state.pop(name, None)
     with st.status('Running lesson workflow…', expanded=True) as progress:
         try:
-            result = asyncio.run(run_full_workflow(key, model_name, seed=seed, on_progress=st.write))
+            run_id, result = asyncio.run(run_full_workflow(key, model_name, seed=seed, on_progress=st.write))
+            st.session_state['run_id'] = run_id
             st.session_state['workflow'] = result.model_dump()
             st.session_state['draft_model'] = model_name
             latest = result.attempts[-1]
@@ -101,6 +98,88 @@ def render_attempts() -> None:
     st.download_button('Download workflow & rejection log', json.dumps(result.model_dump(mode='json'), indent=2), 'lessonloop-run.json', 'application/json')
 
 
+async def experiment(key: str, model_name: str, prompt_id: str) -> dict:
+    writer = GeminiModel(api_key=key, model=model_name)
+    reviewer = GeminiModel(api_key=key, model=model_name, response_type=Evaluation)
+    try:
+        return await test_improvement(Memory(database_path()), prompt_id, writer, reviewer, model_name, on_progress=st.write)
+    finally:
+        await writer.close()
+        await reviewer.close()
+
+
+def render_memory(key: str, model_name: str) -> None:
+    memory = Memory(database_path())
+    active = memory.active_prompt()
+    st.subheader('Memory across runs')
+    st.caption('SQLite keeps automatic runs, feedback, and prompt versions after restart. This is a local single-user workbench.')
+    st.write('**Active prompt:**', active['id'])
+    st.write(active['instruction'] or 'Original teaching instructions; no learned additions yet.')
+    runs = memory.runs()
+    if runs:
+        run_id = st.selectbox('Saved run', [run['id'] for run in runs], key='saved_run', format_func=lambda value: next(f"{r['created_at'][:19]} · {r['status']} · {r['kind']} · {r['id'][:8]}" for r in runs if r['id'] == value))
+        saved = memory.run(run_id)
+        st.write('**Prompt used:**', saved['prompt_version'])
+        if saved['result']:
+            st.download_button('Download saved run', saved['result'], f'{run_id}.json', 'application/json')
+            if st.button('Open saved run', key='restore_run'):
+                result = WorkflowResult.model_validate_json(saved['result'])
+                st.session_state['workflow'] = result.model_dump()
+                st.session_state['run_id'] = run_id
+                st.session_state['draft_model'] = saved['model']
+                for name in ('draft', 'evaluation', 'evaluation_hash'):
+                    st.session_state.pop(name, None)
+                latest = result.attempts[-1]
+                if latest.lesson:
+                    st.session_state['draft'] = Draft(lesson=latest.lesson).model_dump()
+                    if latest.evaluation:
+                        st.session_state['evaluation'] = latest.evaluation.model_dump()
+                        st.session_state['evaluation_hash'] = fingerprint(latest.lesson)
+                st.rerun()
+        else:
+            st.warning('This run did not save a completed result. It may have been interrupted; start a new run.')
+        with st.form('feedback'):
+            checkpoint = st.selectbox('Checkpoint needing improvement', [f'C{i}' for i in range(1, 10)], key='feedback_checkpoint')
+            comment = st.text_area('Your feedback', key='feedback_text', max_chars=1000, help='Describe the teaching issue. Do not include credentials or personal data.')
+            if st.form_submit_button('Save feedback'):
+                if comment.strip():
+                    memory.add_feedback(run_id, checkpoint, comment)
+                    propose_improvements(memory)
+                    st.success('Feedback saved. It contributes to repeated-failure analysis; the original evaluation stays unchanged.')
+                else:
+                    st.error('Enter feedback before saving.')
+    else:
+        st.info('Run the automatic workflow to build persistent history.')
+    st.subheader('Learn from repeated failures')
+    st.caption('Two distinct normal runs must fail the same check before a proposal is created. Demo runs do not train memory. The rubric never changes to make passing easier.')
+    failures = memory.repeated_failures()
+    if failures:
+        st.json({checkpoint: len(ids) for checkpoint, ids in failures.items()})
+    if st.button('Find improvement proposals'):
+        propose_improvements(memory)
+    for prompt in memory.prompts():
+        if prompt['id'] == 'base-v1':
+            continue
+        with st.expander(f"{prompt['id']} · {prompt['status']} · {prompt['checkpoint']}"):
+            st.write(prompt['instruction'])
+            st.write('**Failure evidence (run IDs):**', json.loads(prompt['evidence']))
+            if prompt['experiment']:
+                st.json(json.loads(prompt['experiment']))
+            if prompt['status'] in ('proposed', 'error') and prompt['parent_id'] == active['id']:
+                st.caption('Tests old and proposed prompts on two fixed scenarios: eight paid requests maximum. Adoption requires fewer target and total failures with no observed checkpoint regressions.')
+                if st.button('Test and adopt if better', key='test_' + prompt['id'], disabled=not bool(key and model_name)):
+                    with st.status('Comparing prompt versions…'):
+                        try:
+                            report = asyncio.run(experiment(key, model_name, prompt['id']))
+                            if report['adopted']:
+                                st.success('Improvement adopted. Future automatic runs will use it.')
+                            else:
+                                st.info('No proven improvement. The existing prompt remains active.')
+                            st.json(report)
+                        except Exception:
+                            st.error('The experiment could not finish. The active prompt was not changed; you can retry the proposal.')
+
+
 def current_review(draft: Draft) -> Evaluation | None:
     if st.session_state.get('evaluation_hash') != fingerprint(draft.lesson):
         return None
@@ -122,7 +201,7 @@ def main() -> None:
     st.caption('LESSONLOOP / LESSON STUDIO')
     st.title('A clearer first lesson.')
     st.write('Generate an introduction to RAG for a learner starting from zero.')
-    st.info('Generate, evaluate, and revise automatically. A lesson gets at most three attempts: one draft and two revisions.')
+    st.info('Generate, evaluate, and revise automatically. A lesson gets at most three attempts. Runs are saved locally; tested prompt improvements carry into future runs.')
     key, configured_model = settings()
     brief = rag_brief()
     with st.sidebar:
@@ -135,7 +214,7 @@ def main() -> None:
         st.write('**Audience**')
         st.write(brief.learner)
         st.caption('The API key stays on the server and is never displayed here.')
-    lesson_tab, brief_tab, checks_tab = st.tabs(['Create lesson', 'Teaching brief', 'Quality checkpoints'])
+    lesson_tab, brief_tab, checks_tab, memory_tab = st.tabs(['Create lesson', 'Teaching brief', 'Quality checkpoints', 'Memory & improvements'])
     with lesson_tab:
         automatic = st.checkbox('Automatically evaluate and revise', value=True, key='automatic_mode', help='Up to 3 attempts and 6 Gemini requests. Turn off to inspect a single draft manually.')
         with st.form('generate'):
@@ -155,6 +234,7 @@ def main() -> None:
                         try:
                             draft = asyncio.run(create_draft(key, model_name.strip()))
                             st.session_state.pop('workflow', None)
+                            st.session_state.pop('run_id', None)
                             st.session_state.pop('evaluation', None)
                             st.session_state.pop('evaluation_hash', None)
                             st.session_state['draft'] = draft.model_dump()
@@ -180,6 +260,7 @@ def main() -> None:
                     st.error('Enter a Gemini model ID before starting revisions.')
             if st.button('Evaluate lesson', type='primary', disabled=not bool(key), key='evaluate'):
                 st.session_state.pop('workflow', None)
+                st.session_state.pop('run_id', None)
                 st.session_state.pop('evaluation', None)
                 st.session_state.pop('evaluation_hash', None)
                 if not model_name.strip():
@@ -203,6 +284,7 @@ def main() -> None:
                     draft = draft.model_copy(update={'lesson': draft.lesson.model_copy(update={'limitations': 'RAG always gives correct answers.'})})
                     st.session_state['draft'] = draft.model_dump()
                     st.session_state.pop('workflow', None)
+                    st.session_state.pop('run_id', None)
                     st.session_state.pop('evaluation', None)
                     st.session_state.pop('evaluation_hash', None)
             review = current_review(draft)
@@ -215,7 +297,7 @@ def main() -> None:
             else:
                 review_status = 'Rejected — needs revision'
                 st.error(f'Rejected — {sum(not c.passed for c in review.checks)} checkpoint(s) failed. See Quality checkpoints for feedback.')
-            st.caption(f"Generated with {st.session_state.get('draft_model', 'Gemini')}. Saved in this browser session only; on a failed retry, the previous draft remains below.")
+            st.caption(f"Generated with {st.session_state.get('draft_model', 'Gemini')}. Automatic runs are saved to local SQLite. Manual drafts stay in this browser session until downloaded.")
             st.markdown(markdown(draft, review_status))
             st.download_button('Download lesson (.md)', markdown(draft, review_status), 'rag-lesson-draft.md', 'text/markdown')
             with st.expander('Structured output'):
@@ -254,6 +336,9 @@ def main() -> None:
             report = {'rubric_version': RUBRIC_VERSION, 'lesson_sha256': st.session_state['evaluation_hash'], 'approved': review.approved, **review.model_dump()}
             import json
             st.download_button('Download evaluation report', json.dumps(report, indent=2), 'evaluation.json', 'application/json')
+
+    with memory_tab:
+        render_memory(key, model_name.strip())
 
 
 

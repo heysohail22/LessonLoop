@@ -1,64 +1,122 @@
 # LessonLoop
 
-A beginner lesson generator with a planned evaluate/revise loop. This is an independent uv project.
+An AI lesson writer that generates, reviews, and revises a beginner lesson before deciding whether to approve it. Built for the **GenAI Engineer — Content Systems** assessment, with **Introduction to RAG** as the submission topic.
 
-## Current milestone
+**Stack:** Python 3.12+, uv, Gemini (`google-genai`), LangGraph, Pydantic, SQLite, Streamlit. No LangChain agent abstraction or vector database is necessary for this bounded workflow. The reference notes are the generator's grounding material; this project teaches RAG rather than claiming to implement a production RAG search service.
 
-The RAG learner brief, nine rubric conditions, source-linked reference notes, structured lesson contract, provider-independent async generation function, and Gemini adapter are implemented. By default the CLI displays inputs. Only `--live` calls Gemini. Manual evaluation against C1-C9 is implemented. LangGraph orchestration, bounded automatic revisions, and an attempt/rejection log are implemented. Persistent memory and prompt improvement remain future milestones. Schema validity is not a quality pass.
-
-## Setup (uv only)
+## Start here
 
 ```bash
-cd /home/sohail/Desktop/lesson_loop
-uv sync
-uv run python -m lessonloop --show brief
-uv run python -m lessonloop --show prompt
-uv run pytest
-```
-
-The inspection commands and tests make no network/model calls and require no API key. Keep future credentials in environment variables; never commit them.
-
-## Generate a draft with Gemini
-
-Set `GEMINI_API_KEY` privately in your shell and `GEMINI_MODEL` to an available model supporting structured output. `.env.example` documents these variables; files are not loaded automatically. Then run:
-
-```bash
-uv run python -m lessonloop --live
-```
-
-This explicitly makes a model call and may incur API charges. The adapter uses the official `google-genai` SDK, a 60-second HTTP timeout, a 65-second outer bound, and no automatic retries. Output is JSON with status `unreviewed`. No live call is part of ordinary tests. See [Gemini structured output documentation](https://ai.google.dev/gemini-api/docs/generate-content/structured-output).
-
-`src/lessonloop/generation.py` contains the teaching rules and `generate_draft(model, brief)`. A provider adapter must implement asynchronous `complete(system=..., user=...)`, enforce a request timeout, and return JSON text. Pydantic rejects incomplete or malformed lessons. Drafts retain their original `unreviewed` status; the separate evaluation report records approval or rejection.
-
-Reference notes are curated summaries, not automatically fetched source documents. Their coverage is intentionally limited to introductory RAG. Other topics need their own reviewed brief and references. Rubric C7 will check support against these notes, not prove universal factual accuracy.
-
-## Local testing UI
-
-```bash
-uv sync
+uv sync --locked
+cp .env.example .env
+# Privately fill GEMINI_API_KEY and GEMINI_MODEL in .env
 uv run streamlit run app.py
 ```
 
-Open http://localhost:8501. The UI reads GEMINI_API_KEY and GEMINI_MODEL from the project .env file, with shell variables taking precedence. It does not print credentials or modify the environment. The CLI continues to require shell variables. A model ID can also be entered in the UI. Clicking Generate makes one live request; tab changes and downloads do not generate again. This version supports RAG only. Lessons are unreviewed, remain in browser-session memory only, and can be downloaded as Markdown or JSON. Click Evaluate lesson to run a separate Gemini review. Checkpoints then show pass/fail, evidence, reasons, and required changes. Automatic mode runs the bounded revision workflow. Persistent learning is not implemented yet. Bind to localhost for local testing.
+Open http://localhost:8501. Use a Gemini model ID available to your account that supports structured JSON output. Both UI and CLI read `.env`; shell variables take precedence. No key is printed or placed in graph state. The app binds to localhost and has no business authentication: keep it local.
 
-UI tests use Streamlit AppTest and fake model responses; they never call Gemini.
+## What it does
 
-## Editor import errors
+1. Load the learner brief, reviewed source notes, rubric, and active tested prompt guidance.
+2. Generate a structured lesson.
+3. Evaluate all nine hard pass/fail checkpoints with evidence, reasons, and corrections.
+4. Approve only if every required checkpoint passes. On a content failure, feed the old lesson and failed checks back to the writer.
+5. Stop after **one draft plus at most two revisions**. Unresolved failures become `needs_human_review`; provider or malformed-output failures become `error`.
+6. Save automatic runs, attempts, lessons, evaluations, model name, source snapshot, prompt version, and feedback to SQLite.
+7. Find repeated failures across distinct runs and propose stronger instructions. Test old/new instructions against the unchanged rubric before adopting improvements for future runs.
 
-Open this project folder as the workspace. Use Python: Select Interpreter and select `.venv/bin/python` if an interpreter was already selected. The workspace defaults and Pyright configuration point to the uv environment and src directory. Reload the editor window after switching. Run `uv sync` first if the environment is absent.
+Python owns routing, attempt limits, output validation, and approval. The model does not decide whether it can skip a check or keep retrying.
 
-## Evaluator
+## Test it in the UI
 
-Generate a lesson, click **Evaluate lesson**, and open **Quality checkpoints**. Evaluation uses its own reviewer prompt and structured schema; it receives the lesson, audience, rubric, and curated reference notes. Python requires exactly C1-C9 once each, strict booleans, and nonempty evidence, reasons, and change instructions. Approval is computed from all nine results. Invalid responses and request failures leave the lesson unreviewed. A lesson fingerprint prevents attaching an old review to changed content. Download the report for the explicit approval decision; the original draft JSON remains unreviewed.
+- Keep **Automatically evaluate and revise** enabled, then click **Generate lesson**.
+- Inspect the final status, **Quality checkpoints**, and **Attempt history & rejection log**.
+- Download the lesson, report, and complete run log.
+- To demonstrate a rejection: expand **Test a deliberate error**, insert it, then click **Run revisions on this draft**. The submitted draft counts as attempt one.
+- Open **Memory & improvements** to restore earlier runs, add checkpoint-specific feedback, inspect proposals, and test a proposal.
+- Turn off automatic mode to generate and evaluate manually. Manual single drafts are session-only; automatic runs, including seeded repair runs, are persisted.
 
-For the demo, expand **Test a deliberate error**, insert the false correctness guarantee, then evaluate again. A narrow deterministic safeguard rejects this explicit guarantee under C6/C7 even if the model misses it. Other semantic judgments depend on the reviewer model. This safeguard is not a complete fact checker. The same Gemini model can write and review, with separate prompts; correlated mistakes remain possible. Reference notes are limited summaries, not a comprehensive knowledge base. Current C9 also asks the reviewer to assess language accessibility. Rubric version: rag-v1.
+### Model usage and limits
 
-`uv run pytest` runs only fake-model tests, including invalid/missing/duplicate checklist rejection and the deliberate-error safeguard. The generate/evaluate/revise graph and rejection change history are implemented. Durable memory and prompt improvement remain future work.
+A full run uses at most **6 model requests** (3 writer + 3 reviewer). A seeded repair run uses at most 5. A prompt experiment uses **8 requests** (old and new writer/reviewer pairs on 2 scenarios). These may consume paid quota. Each request has a 60-second HTTP timeout and 65-second outer bound; transport retries are disabled. Testing a proposal is explicit so generation does not unexpectedly start eight additional requests. The system makes the adoption decision automatically.
 
-## Automatic generate → evaluate → revise workflow
+## CLI
 
-Automatic mode is enabled by default in the UI. **Generate lesson** runs LangGraph's `generate → evaluate` loop; the Python conditional route stops on approval or after three attempts (one original plus at most two revisions). Every revised lesson gets a full evaluation. Revisions receive the original brief and sources, previous lesson, and all failed checks with evidence and requested corrections. Up to six Gemini requests can be made per run; model transport retries are disabled. Invalid output or provider errors stop the run with `error`, without approval, preserving completed attempts. Each model call has its existing timeout; graph recursion is also bounded. Graph state is validated with Pydantic; no provider clients or secrets are stored in it.
+Inspection and ordinary tests do not call Gemini:
 
-The final status is `approved`, `needs_human_review` after exhausted content retries, or `error` for an interrupted run. Uncheck automatic mode for manual generation/evaluation. **Run revisions on this draft** counts the submitted draft as attempt one, evaluates it, and allows at most two revisions. For the demo, insert the deliberate error and click this button.
+```bash
+uv run python -m lessonloop --show brief
+uv run python -m lessonloop --show prompt
+uv run python -m lessonloop --show history
+uv run python -m lessonloop --show memory
+uv run pytest
+# Optional complete no-cost demonstration (synthetic, not live quality evidence)
+uv run python scripts/offline_demo.py --output outputs/offline-demo.json
+```
 
-Attempt history shows each lesson, failed checks, reasons, requested changes, actual sections changed on the following attempt, and reevaluation results. The JSON download contains all versions and complete evaluations, so changes can be inspected directly. A changed section is not by itself proof of a successful correction. History remains in Streamlit session memory only; downloads preserve a copy, but durable cross-run memory is not yet implemented.
+Model operations require explicit `--live`:
+
+```bash
+# Complete workflow and export run.json; lesson.md is written only on approval
+uv run python -m lessonloop --live --output outputs/my-run
+
+# Evaluate and repair an existing Lesson JSON, counted as attempt one
+uv run python -m lessonloop --live --seed my-lesson.json --output outputs/repair
+
+# Compare a proposed prompt with its parent and adopt only if better
+uv run python -m lessonloop --live --test-prompt prompt-<id>
+```
+
+`--seed` accepts the eight-field Lesson object, not a complete run/report envelope. `main.py` is a convenience entry point for the same CLI. A failed export removes a previous generated `lesson.md` in the chosen output directory to avoid presenting stale approval.
+
+## Persistent memory and self-evolution
+
+Default database: `data/lessonloop.sqlite3` (gitignored). Override the path with the **environment variable** `LESSONLOOP_DB`. SQLite uses short transactions, foreign keys, and a busy timeout. Reopen the app and select a saved run to prove memory survives a restart.
+
+A checkpoint must fail in **two distinct normal runs** before a candidate is proposed. Three retries in one run do not count as three examples. Seeded/demo runs are excluded. Human feedback contributes the checkpoint ID to this analysis; free-text feedback is saved for review, not inserted as model instructions. Duplicate reports for one run/checkpoint count once. Old-rubric model failures are excluded from current-rubric analysis.
+
+Proposals come from a small reviewed catalog of checkpoint-specific teaching strategies, combined with the active guidance. This is a bounded, explainable form of prompt evolution; it does not retrain model weights or invent arbitrary instructions from untrusted text. The rubric remains fixed during comparisons.
+
+The gate compares parent and candidate on the same two fictional RAG scenarios (college handbook and library opening hours). It requires:
+
+- Fewer failures on the targeted checkpoint.
+- Fewer total checkpoint failures.
+- No baseline-pass → candidate-fail regression on any checkpoint in either scenario.
+
+Experiments save both lesson versions, all evaluations, model/rubric/benchmark versions, metrics, and the candidate's failure-evidence run IDs. Only accepted improvements become active for future automatic runs. No improvement, an experiment error, or a stale parent leaves the active prompt unchanged. Concurrent promotion uses an atomic parent check. A crash during an experiment can leave it labelled `testing`; inspect its saved state rather than claiming it was adopted.
+
+## Verification
+
+```bash
+uv sync --locked
+uv run pytest
+uv run --with pyrefly pyrefly check
+```
+
+Ordinary tests use fake model responses, isolated temporary SQLite files, and no paid model calls. They cover malformed/missing/duplicate checks, strict booleans, bounded retries, failure/error paths, changed-section logs, UI interactions, persistence after reopening, repeated-failure counting, prompt promotion, rejected experiments, and use of accepted memory in future runs. The live evidence in `submission/` is separate from CI.
+
+## Project map
+
+| File | Responsibility |
+|---|---|
+| `app.py` | Local UI, run history, evaluation display, feedback and experiments |
+| `src/lessonloop/generation.py` | Learner brief, reviewed references, rubric conditions, writer contract |
+| `src/lessonloop/evaluation.py` | Reviewer prompt, strict checklist validation, Python approval |
+| `src/lessonloop/workflow.py` | LangGraph nodes, deterministic routing, attempt cap, rejection/change log |
+| `src/lessonloop/memory.py` | SQLite persistence and atomic prompt promotion |
+| `src/lessonloop/evolution.py` | Failure-based proposals, fixed benchmark, no-regression gate |
+| `src/lessonloop/service.py` | Compose persistent memory with the workflow |
+| `src/lessonloop/gemini.py` | Bounded provider calls and safe errors |
+| `src/lessonloop/settings.py` | Shared .env/settings reads without environment mutation |
+| `src/lessonloop/exporting.py` | Approved-lesson submission exports |
+| `tests/` | No-cost automated checks |
+| `docs/` | Architecture, rubric rationale, assessment checklist, Loom guide |
+| `submission/` | Real generated lesson and live run evidence |
+
+## Honest limits
+
+This release intentionally supports the assessment's RAG topic with reviewed reference notes. Other topics require their own brief, references, and content checkpoints. It does not browse automatically, train model weights, or prove actual learner understanding.
+
+The writer and reviewer may use the same model under separate prompts; correlated errors and inconsistent judgments remain possible. A narrow Python guard catches the specific false-guarantee demo claim, but is not a general fact checker. A two-scenario improvement gate provides observed evidence, not statistical proof of general improvement. Prompt adoption never guarantees all later lessons pass; every lesson still gets full evaluation. No multi-user authentication, hosted deployment, distributed workers, or production observability is claimed.
+
+See [live and automated verification](docs/verification.md), [architecture and trade-offs](docs/architecture.md), [assessment checklist](docs/assessment-checklist.md), and [video walkthrough guide](docs/loom-guide.md).

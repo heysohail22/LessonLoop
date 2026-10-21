@@ -64,3 +64,10 @@ def test_deliberate_guarantee_is_rejected_even_if_model_misses_it():
 def test_explaining_a_false_claim_is_not_automatically_rejected():
     good = lesson().model_copy(update={'limitations': 'It is incorrect to say RAG always gives correct answers.'})
     assert asyncio.run(evaluate_lesson(FakeModel(results()), good, rag_brief())).approved
+
+
+def test_true_or_false_exercise_does_not_excuse_a_guarantee_elsewhere():
+    bad=lesson().model_copy(update={'limitations':'RAG always gives correct answers.', 'exercise':'True or False: Is RAG perfect?'})
+    result=asyncio.run(evaluate_lesson(FakeModel(results()),bad,rag_brief()))
+    assert not result.approved
+    assert {c.id for c in result.checks if not c.passed}=={'C6','C7'}

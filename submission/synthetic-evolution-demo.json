@@ -1,0 +1,784 @@
+{
+  "kind": "synthetic-test-only",
+  "notice": "Deterministic fake models. This proves control flow and persistence, NOT real model quality improvement. It uses a temporary database, not your live memory.",
+  "training_runs": [
+    {
+      "run_id": "dc9b7567-25c5-46f0-a643-ebc6c8777c60",
+      "status": "approved",
+      "rubric_version": "rag-v2",
+      "attempts": [
+        {
+          "number": 1,
+          "lesson": {
+            "title": "baseline fixture",
+            "what_it_is": "baseline fixture",
+            "why_it_matters": "baseline fixture",
+            "how_it_works": "baseline fixture",
+            "worked_example": "baseline fixture",
+            "limitations": "baseline fixture",
+            "exercise": "baseline fixture",
+            "answer_explanation": "baseline fixture"
+          },
+          "evaluation": {
+            "checks": [
+              {
+                "id": "C1",
+                "passed": true,
+                "evidence": "Synthetic fixture marker, not real lesson evidence.",
+                "reason": "Synthetic pass",
+                "required_change": "None needed"
+              },
+              {
+                "id": "C2",
+                "passed": true,
+                "evidence": "Synthetic fixture marker, not real lesson evidence.",
+                "reason": "Synthetic pass",
+                "required_change": "None needed"
+              },
+              {
+                "id": "C3",
+                "passed": true,
+                "evidence": "Synthetic fixture marker, not real lesson evidence.",
+                "reason": "Synthetic pass",
+                "required_change": "None needed"
+              },
+              {
+                "id": "C4",
+                "passed": true,
+                "evidence": "Synthetic fixture marker, not real lesson evidence.",
+                "reason": "Synthetic pass",
+                "required_change": "None needed"
+              },
+              {
+                "id": "C5",
+                "passed": false,
+                "evidence": "Synthetic fixture marker, not real lesson evidence.",
+                "reason": "Synthetic unexplained-term failure",
+                "required_change": "Explain the term"
+              },
+              {
+                "id": "C6",
+                "passed": true,
+                "evidence": "Synthetic fixture marker, not real lesson evidence.",
+                "reason": "Synthetic pass",
+                "required_change": "None needed"
+              },
+              {
+                "id": "C7",
+                "passed": true,
+                "evidence": "Synthetic fixture marker, not real lesson evidence.",
+                "reason": "Synthetic pass",
+                "required_change": "None needed"
+              },
+              {
+                "id": "C8",
+                "passed": true,
+                "evidence": "Synthetic fixture marker, not real lesson evidence.",
+                "reason": "Synthetic pass",
+                "required_change": "None needed"
+              },
+              {
+                "id": "C9",
+                "passed": true,
+                "evidence": "Synthetic fixture marker, not real lesson evidence.",
+                "reason": "Synthetic pass",
+                "required_change": "None needed"
+              }
+            ]
+          },
+          "changed_sections": [],
+          "error": null
+        },
+        {
+          "number": 2,
+          "lesson": {
+            "title": "improved fixture",
+            "what_it_is": "improved fixture",
+            "why_it_matters": "improved fixture",
+            "how_it_works": "improved fixture",
+            "worked_example": "improved fixture",
+            "limitations": "improved fixture",
+            "exercise": "improved fixture",
+            "answer_explanation": "improved fixture"
+          },
+          "evaluation": {
+            "checks": [
+              {
+                "id": "C1",
+                "passed": true,
+                "evidence": "Synthetic fixture marker, not real lesson evidence.",
+                "reason": "Synthetic pass",
+                "required_change": "None needed"
+              },
+              {
+                "id": "C2",
+                "passed": true,
+                "evidence": "Synthetic fixture marker, not real lesson evidence.",
+                "reason": "Synthetic pass",
+                "required_change": "None needed"
+              },
+              {
+                "id": "C3",
+                "passed": true,
+                "evidence": "Synthetic fixture marker, not real lesson evidence.",
+                "reason": "Synthetic pass",
+                "required_change": "None needed"
+              },
+              {
+                "id": "C4",
+                "passed": true,
+                "evidence": "Synthetic fixture marker, not real lesson evidence.",
+                "reason": "Synthetic pass",
+                "required_change": "None needed"
+              },
+              {
+                "id": "C5",
+                "passed": true,
+                "evidence": "Synthetic fixture marker, not real lesson evidence.",
+                "reason": "Synthetic pass",
+                "required_change": "None needed"
+              },
+              {
+                "id": "C6",
+                "passed": true,
+                "evidence": "Synthetic fixture marker, not real lesson evidence.",
+                "reason": "Synthetic pass",
+                "required_change": "None needed"
+              },
+              {
+                "id": "C7",
+                "passed": true,
+                "evidence": "Synthetic fixture marker, not real lesson evidence.",
+                "reason": "Synthetic pass",
+                "required_change": "None needed"
+              },
+              {
+                "id": "C8",
+                "passed": true,
+                "evidence": "Synthetic fixture marker, not real lesson evidence.",
+                "reason": "Synthetic pass",
+                "required_change": "None needed"
+              },
+              {
+                "id": "C9",
+                "passed": true,
+                "evidence": "Synthetic fixture marker, not real lesson evidence.",
+                "reason": "Synthetic pass",
+                "required_change": "None needed"
+              }
+            ]
+          },
+          "changed_sections": [
+            "title",
+            "what_it_is",
+            "why_it_matters",
+            "how_it_works",
+            "worked_example",
+            "limitations",
+            "exercise",
+            "answer_explanation"
+          ],
+          "error": null
+        }
+      ]
+    },
+    {
+      "run_id": "351937fd-7fe5-4938-b512-61dbf223ea32",
+      "status": "approved",
+      "rubric_version": "rag-v2",
+      "attempts": [
+        {
+          "number": 1,
+          "lesson": {
+            "title": "baseline fixture",
+            "what_it_is": "baseline fixture",
+            "why_it_matters": "baseline fixture",
+            "how_it_works": "baseline fixture",
+            "worked_example": "baseline fixture",
+            "limitations": "baseline fixture",
+            "exercise": "baseline fixture",
+            "answer_explanation": "baseline fixture"
+          },
+          "evaluation": {
+            "checks": [
+              {
+                "id": "C1",
+                "passed": true,
+                "evidence": "Synthetic fixture marker, not real lesson evidence.",
+                "reason": "Synthetic pass",
+                "required_change": "None needed"
+              },
+              {
+                "id": "C2",
+                "passed": true,
+                "evidence": "Synthetic fixture marker, not real lesson evidence.",
+                "reason": "Synthetic pass",
+                "required_change": "None needed"
+              },
+              {
+                "id": "C3",
+                "passed": true,
+                "evidence": "Synthetic fixture marker, not real lesson evidence.",
+                "reason": "Synthetic pass",
+                "required_change": "None needed"
+              },
+              {
+                "id": "C4",
+                "passed": true,
+                "evidence": "Synthetic fixture marker, not real lesson evidence.",
+                "reason": "Synthetic pass",
+                "required_change": "None needed"
+              },
+              {
+                "id": "C5",
+                "passed": false,
+                "evidence": "Synthetic fixture marker, not real lesson evidence.",
+                "reason": "Synthetic unexplained-term failure",
+                "required_change": "Explain the term"
+              },
+              {
+                "id": "C6",
+                "passed": true,
+                "evidence": "Synthetic fixture marker, not real lesson evidence.",
+                "reason": "Synthetic pass",
+                "required_change": "None needed"
+              },
+              {
+                "id": "C7",
+                "passed": true,
+                "evidence": "Synthetic fixture marker, not real lesson evidence.",
+                "reason": "Synthetic pass",
+                "required_change": "None needed"
+              },
+              {
+                "id": "C8",
+                "passed": true,
+                "evidence": "Synthetic fixture marker, not real lesson evidence.",
+                "reason": "Synthetic pass",
+                "required_change": "None needed"
+              },
+              {
+                "id": "C9",
+                "passed": true,
+                "evidence": "Synthetic fixture marker, not real lesson evidence.",
+                "reason": "Synthetic pass",
+                "required_change": "None needed"
+              }
+            ]
+          },
+          "changed_sections": [],
+          "error": null
+        },
+        {
+          "number": 2,
+          "lesson": {
+            "title": "improved fixture",
+            "what_it_is": "improved fixture",
+            "why_it_matters": "improved fixture",
+            "how_it_works": "improved fixture",
+            "worked_example": "improved fixture",
+            "limitations": "improved fixture",
+            "exercise": "improved fixture",
+            "answer_explanation": "improved fixture"
+          },
+          "evaluation": {
+            "checks": [
+              {
+                "id": "C1",
+                "passed": true,
+                "evidence": "Synthetic fixture marker, not real lesson evidence.",
+                "reason": "Synthetic pass",
+                "required_change": "None needed"
+              },
+              {
+                "id": "C2",
+                "passed": true,
+                "evidence": "Synthetic fixture marker, not real lesson evidence.",
+                "reason": "Synthetic pass",
+                "required_change": "None needed"
+              },
+              {
+                "id": "C3",
+                "passed": true,
+                "evidence": "Synthetic fixture marker, not real lesson evidence.",
+                "reason": "Synthetic pass",
+                "required_change": "None needed"
+              },
+              {
+                "id": "C4",
+                "passed": true,
+                "evidence": "Synthetic fixture marker, not real lesson evidence.",
+                "reason": "Synthetic pass",
+                "required_change": "None needed"
+              },
+              {
+                "id": "C5",
+                "passed": true,
+                "evidence": "Synthetic fixture marker, not real lesson evidence.",
+                "reason": "Synthetic pass",
+                "required_change": "None needed"
+              },
+              {
+                "id": "C6",
+                "passed": true,
+                "evidence": "Synthetic fixture marker, not real lesson evidence.",
+                "reason": "Synthetic pass",
+                "required_change": "None needed"
+              },
+              {
+                "id": "C7",
+                "passed": true,
+                "evidence": "Synthetic fixture marker, not real lesson evidence.",
+                "reason": "Synthetic pass",
+                "required_change": "None needed"
+              },
+              {
+                "id": "C8",
+                "passed": true,
+                "evidence": "Synthetic fixture marker, not real lesson evidence.",
+                "reason": "Synthetic pass",
+                "required_change": "None needed"
+              },
+              {
+                "id": "C9",
+                "passed": true,
+                "evidence": "Synthetic fixture marker, not real lesson evidence.",
+                "reason": "Synthetic pass",
+                "required_change": "None needed"
+              }
+            ]
+          },
+          "changed_sections": [
+            "title",
+            "what_it_is",
+            "why_it_matters",
+            "how_it_works",
+            "worked_example",
+            "limitations",
+            "exercise",
+            "answer_explanation"
+          ],
+          "error": null
+        }
+      ]
+    }
+  ],
+  "experiment": {
+    "benchmark_version": "rag-bench-v1",
+    "rubric_version": "rag-v2",
+    "model": "synthetic-fixture",
+    "target": "C5",
+    "pairs": [
+      {
+        "scenario": "Use a fictional college handbook example.",
+        "baseline": {
+          "checks": [
+            {
+              "id": "C1",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            },
+            {
+              "id": "C2",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            },
+            {
+              "id": "C3",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            },
+            {
+              "id": "C4",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            },
+            {
+              "id": "C5",
+              "passed": false,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic unexplained-term failure",
+              "required_change": "Explain the term"
+            },
+            {
+              "id": "C6",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            },
+            {
+              "id": "C7",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            },
+            {
+              "id": "C8",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            },
+            {
+              "id": "C9",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            }
+          ]
+        },
+        "baseline_lesson": {
+          "title": "baseline fixture",
+          "what_it_is": "baseline fixture",
+          "why_it_matters": "baseline fixture",
+          "how_it_works": "baseline fixture",
+          "worked_example": "baseline fixture",
+          "limitations": "baseline fixture",
+          "exercise": "baseline fixture",
+          "answer_explanation": "baseline fixture"
+        },
+        "candidate": {
+          "checks": [
+            {
+              "id": "C1",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            },
+            {
+              "id": "C2",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            },
+            {
+              "id": "C3",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            },
+            {
+              "id": "C4",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            },
+            {
+              "id": "C5",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            },
+            {
+              "id": "C6",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            },
+            {
+              "id": "C7",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            },
+            {
+              "id": "C8",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            },
+            {
+              "id": "C9",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            }
+          ]
+        },
+        "candidate_lesson": {
+          "title": "improved fixture",
+          "what_it_is": "improved fixture",
+          "why_it_matters": "improved fixture",
+          "how_it_works": "improved fixture",
+          "worked_example": "improved fixture",
+          "limitations": "improved fixture",
+          "exercise": "improved fixture",
+          "answer_explanation": "improved fixture"
+        }
+      },
+      {
+        "scenario": "Use a fictional library opening-hours example.",
+        "baseline": {
+          "checks": [
+            {
+              "id": "C1",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            },
+            {
+              "id": "C2",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            },
+            {
+              "id": "C3",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            },
+            {
+              "id": "C4",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            },
+            {
+              "id": "C5",
+              "passed": false,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic unexplained-term failure",
+              "required_change": "Explain the term"
+            },
+            {
+              "id": "C6",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            },
+            {
+              "id": "C7",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            },
+            {
+              "id": "C8",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            },
+            {
+              "id": "C9",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            }
+          ]
+        },
+        "baseline_lesson": {
+          "title": "baseline fixture",
+          "what_it_is": "baseline fixture",
+          "why_it_matters": "baseline fixture",
+          "how_it_works": "baseline fixture",
+          "worked_example": "baseline fixture",
+          "limitations": "baseline fixture",
+          "exercise": "baseline fixture",
+          "answer_explanation": "baseline fixture"
+        },
+        "candidate": {
+          "checks": [
+            {
+              "id": "C1",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            },
+            {
+              "id": "C2",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            },
+            {
+              "id": "C3",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            },
+            {
+              "id": "C4",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            },
+            {
+              "id": "C5",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            },
+            {
+              "id": "C6",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            },
+            {
+              "id": "C7",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            },
+            {
+              "id": "C8",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            },
+            {
+              "id": "C9",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            }
+          ]
+        },
+        "candidate_lesson": {
+          "title": "improved fixture",
+          "what_it_is": "improved fixture",
+          "why_it_matters": "improved fixture",
+          "how_it_works": "improved fixture",
+          "worked_example": "improved fixture",
+          "limitations": "improved fixture",
+          "exercise": "improved fixture",
+          "answer_explanation": "improved fixture"
+        }
+      }
+    ],
+    "baseline_failures": 2,
+    "candidate_failures": 0,
+    "baseline_target_failures": 2,
+    "candidate_target_failures": 0,
+    "regressions": [],
+    "adopted": true
+  },
+  "future_run": {
+    "run_id": "c9a66584-4eab-4767-ae8f-a16d17623668",
+    "status": "approved",
+    "rubric_version": "rag-v2",
+    "attempts": [
+      {
+        "number": 1,
+        "lesson": {
+          "title": "improved fixture",
+          "what_it_is": "improved fixture",
+          "why_it_matters": "improved fixture",
+          "how_it_works": "improved fixture",
+          "worked_example": "improved fixture",
+          "limitations": "improved fixture",
+          "exercise": "improved fixture",
+          "answer_explanation": "improved fixture"
+        },
+        "evaluation": {
+          "checks": [
+            {
+              "id": "C1",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            },
+            {
+              "id": "C2",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            },
+            {
+              "id": "C3",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            },
+            {
+              "id": "C4",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            },
+            {
+              "id": "C5",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            },
+            {
+              "id": "C6",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            },
+            {
+              "id": "C7",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            },
+            {
+              "id": "C8",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            },
+            {
+              "id": "C9",
+              "passed": true,
+              "evidence": "Synthetic fixture marker, not real lesson evidence.",
+              "reason": "Synthetic pass",
+              "required_change": "None needed"
+            }
+          ]
+        },
+        "changed_sections": [],
+        "error": null
+      }
+    ]
+  },
+  "active_prompt": "prompt-57cc572a91f6"
+}

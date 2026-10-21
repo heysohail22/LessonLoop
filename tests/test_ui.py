@@ -11,11 +11,11 @@ APP = Path(__file__).resolve().parents[1] / 'app.py'
 def test_missing_key_disables_live_generation(monkeypatch):
     monkeypatch.delenv('GEMINI_API_KEY', raising=False)
     # Prevent local developer credentials from affecting the test.
-    monkeypatch.setattr('dotenv.dotenv_values', lambda *a, **kw: {})
+    monkeypatch.setattr('lessonloop.settings.dotenv_values', lambda *a, **kw: {})
     app = AppTest.from_file(str(APP)).run()
     assert not app.exception
     assert app.button[0].disabled
-    assert len(app.tabs) == 3
+    assert len(app.tabs) == 4
     assert any('Not evaluated' in item.value for item in app.markdown)
 
 
@@ -130,3 +130,27 @@ def test_automatic_workflow_revises_and_shows_log(monkeypatch):
     assert any('Attempt 2' in e.label for e in app.expander)
     app.run()
     assert len(reviews) == 2
+
+
+def test_saved_run_restores_in_new_ui_session_and_feedback_persists(monkeypatch):
+    from lessonloop.memory import Memory
+    from lessonloop.settings import database_path
+    from lessonloop.workflow import WorkflowResult, Attempt
+    from lessonloop.evaluation import Evaluation
+    review = Evaluation(checks=[{'id':f'C{i}', 'passed':True, 'evidence':'Excerpt', 'reason':'Met', 'required_change':'None needed'} for i in range(1,10)])
+    memory=Memory(database_path())
+    from lessonloop.generation import rag_brief
+    run_id=memory.start_run('test-model',rag_brief().model_dump(),'base-v1')
+    result=WorkflowResult(status='approved', attempts=[Attempt(number=1,lesson=Lesson(**{field:'Saved lesson' for field in Lesson.model_fields}),evaluation=review)])
+    memory.finish_run(run_id,result)
+    app=AppTest.from_file(str(APP)).run()
+    assert not app.exception
+    assert 'draft' not in app.session_state
+    app.button(key='restore_run').click().run()
+    assert not app.exception
+    assert app.session_state['draft']['lesson']['title']=='Saved lesson'
+    app.selectbox(key='feedback_checkpoint').select('C5')
+    app.text_area(key='feedback_text').input('Explain the terms more clearly.')
+    app.button(key='FormSubmitter:feedback-Save feedback').click().run()
+    assert not app.exception
+    assert Memory(database_path()).repeated_failures()['C5']==[run_id]
