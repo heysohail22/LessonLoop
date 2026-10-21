@@ -31,3 +31,18 @@ This explicitly makes a model call and may incur API charges. The adapter uses t
 `src/lessonloop/generation.py` contains the teaching rules and `generate_draft(model, brief)`. A provider adapter must implement asynchronous `complete(system=..., user=...)`, enforce a request timeout, and return JSON text. Pydantic rejects incomplete or malformed lessons. All generated lessons remain `unreviewed` until a separate evaluator is implemented.
 
 Reference notes are curated summaries, not automatically fetched source documents. Their coverage is intentionally limited to introductory RAG. Other topics need their own reviewed brief and references. Rubric C7 will check support against these notes, not prove universal factual accuracy.
+
+## Local testing UI
+
+```bash
+uv sync
+uv run streamlit run app.py
+```
+
+Open http://localhost:8501. The UI reads GEMINI_API_KEY and GEMINI_MODEL from the project .env file, with shell variables taking precedence. It does not print credentials or modify the environment. The CLI continues to require shell variables. A model ID can also be entered in the UI. Clicking Generate makes one live request; tab changes and downloads do not generate again. This version supports RAG only. Lessons are unreviewed, remain in browser-session memory only, and can be downloaded as Markdown or JSON. Checkpoints are displayed as not evaluated. No evaluator, retry loop, or persistent learning is implemented yet. Bind to localhost for local testing.
+
+UI tests use Streamlit AppTest and fake model responses; they never call Gemini.
+
+## Editor import errors
+
+Open this project folder as the workspace. Use Python: Select Interpreter and select `.venv/bin/python` if an interpreter was already selected. The workspace defaults and Pyright configuration point to the uv environment and src directory. Reload the editor window after switching. Run `uv sync` first if the environment is absent.
