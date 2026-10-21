@@ -22,6 +22,9 @@ def test_generation_supplies_brief_and_never_approves_draft():
     model = FakeModel(json.dumps(payload))
     draft = asyncio.run(generate_draft(model, rag_brief()))
     assert draft.status == "unreviewed"
+    assert draft.generation_inputs is not None
+    assert draft.generation_inputs.system == model.calls[0][0]
+    assert draft.generation_inputs.user == model.calls[0][1]
     sent = json.loads(model.calls[0][1])
     assert len(sent["brief"]["checkpoints"]) == 9
     assert set(sent["brief"]["references"]) == {"R1", "R2", "R3"}

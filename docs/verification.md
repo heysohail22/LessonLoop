@@ -47,3 +47,7 @@
 ## Visual walkthrough UI upgrade
 
 The upgraded UI adds a five-stage progress display, a How it works explorer, recorded live-demo replay, decision metrics, side-by-side revision comparison and exact text differences, checkpoint filters, and clearer memory/benchmark summaries. The suite now has **45 passing tests**, including no-model-call replay and unchanged persistent history during playback. Type checking reports zero diagnostics. No connected browser surface was available for screenshot inspection; this verification uses Streamlit AppTest and local server health. No paid calls were made for the UI upgrade.
+
+## Generation-input inspector — 22 October 2026
+
+The Teaching brief tab was replaced by Generation inputs. New drafts/attempts capture exact writer messages and the output schema using a shared builder, including accepted memory guidance and retry feedback. Supplied drafts are identified as having no writer request; historical results without snapshots are not reconstructed as exact requests. The inspector provides labelled previews and downloads without model calls. The full suite passes **48 tests**, including message equality against fake writer calls and UI inspection without extra requests. Source type checking reports zero diagnostics. No live API calls were made for this change.

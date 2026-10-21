@@ -6,7 +6,7 @@ Record this yourself with your face visible. Do not show `.env`, API keys, accou
 
 “This learner has finished Class 12, has limited English, and is new to AI. LessonLoop writes a RAG lesson and checks whether it meets a fixed quality bar. It revises failures instead of shipping the first fluent answer.”
 
-Show the teaching brief. Explain why the audience changes vocabulary, examples, and sequence.
+Open Generation inputs and show the actual system prompt, user message, schema, and learned guidance. Distinguish a next-run preview from a captured attempt. Explain why the audience changes vocabulary, examples, and sequence.
 
 ## 1:30–5:00 — Run the complete workflow
 

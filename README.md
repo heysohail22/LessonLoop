@@ -124,3 +124,7 @@ See [live and automated verification](docs/verification.md), [architecture and t
 ## Visual walkthrough in the UI
 
 The Create lesson view shows the five workflow stages, real progress events during generation, the final decision, and check/attempt counts. **Load recorded repair demo** replays the captured real rejection/repair evidence without Gemini calls or training the persistent memory. It is clearly labelled as recorded. Compare revisions side by side, inspect exact text differences, and filter checkpoints to failed or passed items. The memory tab shows recent saved-run counts, failure patterns, proposal states, and old/new benchmark failure counts. Layout cards wrap at narrow screen widths; native widgets retain keyboard interaction. No browser surface was available for visual screenshot verification in this session; interactions are covered by Streamlit AppTest.
+
+## Inspect the actual generation inputs
+
+The **Generation inputs** tab shows the writer's system instruction, JSON user message, response JSON schema, and accepted guidance. Automatic and manual previews are clearly marked as previews. New workflow attempts and manual drafts save exact input snapshots using the same builder that feeds the Gemini call; revision snapshots include the previous lesson and failed-check feedback. Supplied initial drafts make no writer call and are labelled accordingly. Older saved runs without snapshots remain readable, but the UI does not invent their historical prompts from current code. No model call is needed to inspect or download inputs.

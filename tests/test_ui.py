@@ -194,3 +194,31 @@ def test_pipeline_does_not_claim_unevaluated_steps_completed():
     html=pipeline_html(stage='approved', attempt=1)
     assert '04 / REVISE · Not needed' in html
     assert '05 / DECIDE · Complete' in html
+
+
+def test_generation_input_inspector_shows_captured_request_and_preview(monkeypatch):
+    import json
+    monkeypatch.setenv('GEMINI_API_KEY','fake-key')
+    monkeypatch.setenv('GEMINI_MODEL','fake-model')
+    calls=[]
+    async def fake_complete(self, *, system,user):
+        calls.append((system,user))
+        return Lesson(**{key:'Example content' for key in Lesson.model_fields}).model_dump_json()
+    async def fake_close(self): pass
+    monkeypatch.setattr('lessonloop.gemini.GeminiModel.complete',fake_complete)
+    monkeypatch.setattr('lessonloop.gemini.GeminiModel.close',fake_close)
+    app=AppTest.from_file(str(APP),default_timeout=10).run()
+    assert 'Generation inputs' in [tab.label for tab in app.tabs]
+    assert any('Preview for the next automatic run' in message.value for message in app.info)
+    app.checkbox(key='automatic_mode').uncheck().run()
+    app.button(key='generate_submit').click().run()
+    assert not app.exception
+    # The persistent selector may remain on preview; choose the captured request.
+    app.selectbox(key='generation_request').select('Current manual draft · captured request').run()
+    assert not app.exception
+    assert any(code.value==calls[0][0] for code in app.code)
+    snapshot=app.session_state['draft']['generation_inputs']
+    assert snapshot['user']==calls[0][1]
+    assert json.loads(snapshot['user'])['brief']['learner']
+    app.selectbox(key='generation_request').select('Next automatic run · preview').run()
+    assert len(calls)==1

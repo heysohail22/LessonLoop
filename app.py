@@ -7,7 +7,7 @@ import re
 import streamlit as st
 from pydantic import ValidationError
 
-from lessonloop.generation import Draft, Lesson, generate_draft, rag_brief
+from lessonloop.generation import Draft, Lesson, GenerationInputs, build_generation_inputs, generate_draft, rag_brief
 from lessonloop.gemini import GeminiModel, GenerationError
 from lessonloop.evaluation import CheckResult, Evaluation, evaluate_lesson, fingerprint, RUBRIC_VERSION
 
@@ -254,6 +254,65 @@ def render_memory(key: str, model_name: str) -> None:
                             st.error('The experiment could not finish. The active prompt was not changed; you can retry the proposal.')
 
 
+def render_generation_inputs() -> None:
+    st.subheader('What do we send to Gemini?')
+    st.write('Inspect the instructions and information used to produce a lesson. New runs capture these messages before each writer call, including revisions.')
+    st.code('System instructions + user message + output schema → Gemini → lesson JSON', language=None)
+    memory = Memory(database_path())
+    active = memory.active_prompt()
+    choices = ['Next automatic run · preview', 'Next manual draft · preview']
+    requests: dict[str, GenerationInputs | None] = {}
+    seeds: dict[str, Lesson] = {}
+    if 'workflow' in st.session_state:
+        result = WorkflowResult.model_validate(st.session_state['workflow'])
+        for attempt in result.attempts:
+            label = f'Attempt {attempt.number} · ' + ('provided draft' if attempt.provided_draft else ('captured request' if attempt.generation_inputs else 'older run — inputs unavailable'))
+            choices.append(label)
+            requests[label] = attempt.generation_inputs
+            if attempt.provided_draft and attempt.lesson:
+                seeds[label] = attempt.lesson
+    elif 'draft' in st.session_state:
+        draft = Draft.model_validate(st.session_state['draft'])
+        label = 'Current manual draft · captured request' if draft.generation_inputs else 'Current draft · inputs unavailable'
+        choices.append(label)
+        requests[label] = draft.generation_inputs
+    default = len(choices)-1 if len(choices)>2 else (0 if st.session_state.get('automatic_mode', True) else 1)
+    selected = st.selectbox('Inspect generation request', choices, index=default, key='generation_request')
+    if selected == choices[0]:
+        inputs = build_generation_inputs(rag_brief(), guidance=active['instruction'])
+        st.info('Preview for the next automatic run. This is not evidence of a past request. A prompt improvement adopted later may change future requests.')
+        st.caption('Active memory prompt version: ' + active['id'])
+    elif selected == choices[1]:
+        inputs = build_generation_inputs(rag_brief())
+        st.info('Preview for manual generation. Manual drafts use the base writer instructions; automatic runs also load accepted guidance from memory.')
+    elif selected in seeds:
+        st.info('This attempt used a supplied draft. No writer request was made for it; the draft was sent directly to evaluation. Select the next attempt to inspect revision inputs.')
+        st.json(seeds[selected].model_dump(), expanded=False)
+        return
+    else:
+        inputs = requests[selected]
+        if inputs is None:
+            st.warning('This older result did not capture its original generation messages. They cannot be shown as exact past inputs. Select a preview, or start a new run to capture the real request.')
+            return
+        st.success('Captured writer input for this attempt. The same snapshot is included in its run/draft JSON download.')
+    st.markdown('### 1. System prompt — how to write')
+    st.caption('Passed to Gemini as system_instruction. It controls language, terminology, grounding, and output format.')
+    st.code(inputs.system, language=None, wrap_lines=True)
+    st.markdown('### 2. User message — what to teach')
+    st.caption('Passed to Gemini as contents. It contains the topic, learner, learning goals, reference notes, and C1–C9. Revision requests also include the previous lesson and failed-check feedback.')
+    st.json(json.loads(inputs.user), expanded=2)
+    st.markdown('### 3. Required response structure')
+    st.caption('Passed through response_json_schema with application/json. These fields define the lesson format; having them does not prove teaching quality.')
+    st.json(inputs.response_schema, expanded=False)
+    st.markdown('### 4. Accepted guidance from memory')
+    if inputs.learned_guidance:
+        st.code(inputs.learned_guidance, language=None, wrap_lines=True)
+    else:
+        st.write('No additional learned guidance is included in this request.')
+    st.caption('Any learned guidance is already included in the system prompt shown above. No credentials or hidden model reasoning are displayed.')
+    st.download_button('Download generation inputs', inputs.model_dump_json(indent=2), 'generation-inputs.json', 'application/json')
+
+
 def current_review(draft: Draft) -> Evaluation | None:
     if st.session_state.get('evaluation_hash') != fingerprint(draft.lesson):
         return None
@@ -291,7 +350,7 @@ def main() -> None:
         st.write('**Audience**')
         st.write(brief.learner)
         st.caption('The API key stays on the server and is never displayed here.')
-    lesson_tab, brief_tab, checks_tab, memory_tab = st.tabs(['Create lesson', 'Teaching brief', 'Quality checkpoints', 'Memory & improvements'])
+    lesson_tab, inputs_tab, checks_tab, memory_tab = st.tabs(['Create lesson', 'Generation inputs', 'Quality checkpoints', 'Memory & improvements'])
     with lesson_tab:
         with st.container(border=True):
             introduction, demo = st.columns([3, 1])
@@ -408,16 +467,8 @@ def main() -> None:
             last_review = current_review(Draft.model_validate(st.session_state['draft']))
             stage = ('approved' if last_review.approved else 'rejected') if last_review else 'draft_ready'
         workflow_panel.markdown(pipeline_html(stage=stage, attempt=count), unsafe_allow_html=True)
-    with brief_tab:
-        st.subheader('The plan before the first word')
-        st.write('These inputs guide the writer. They are separate from the reviewer’s decision about the finished lesson.')
-        st.markdown('#### What the learner should be able to do')
-        for goal in brief.goals:
-            st.write(f'• {goal}')
-        st.subheader('Reference notes')
-        st.caption('Curated summaries supplied to the generator. Sources are not fetched during generation.')
-        for reference_id, note in brief.references.items():
-            st.write(f'**{reference_id}** — {note}')
+    with inputs_tab:
+        render_generation_inputs()
     with checks_tab:
         st.subheader('Why did this lesson pass or fail?')
         st.write('Each checkpoint is a separate requirement. All nine must pass; there is no average score.')
