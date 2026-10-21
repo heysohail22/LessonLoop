@@ -6,6 +6,7 @@ import os
 from google import genai
 from google.genai import errors, types
 import httpx
+from pydantic import BaseModel
 
 from lessonloop.generation import Lesson
 
@@ -15,8 +16,9 @@ class GenerationError(RuntimeError):
 
 
 class GeminiModel:
-    def __init__(self, *, api_key: str, model: str):
+    def __init__(self, *, api_key: str, model: str, response_type: type[BaseModel] = Lesson):
         self.model = model
+        self.response_type = response_type
         self.client = genai.Client(
             api_key=api_key,
             http_options=types.HttpOptions(timeout=60000, retry_options=types.HttpRetryOptions(attempts=1)),
@@ -39,7 +41,7 @@ class GeminiModel:
                     config=types.GenerateContentConfig(
                         system_instruction=system,
                         response_mime_type="application/json",
-                        response_json_schema=Lesson.model_json_schema(),
+                        response_json_schema=getattr(self, "response_type", Lesson).model_json_schema(),
                         max_output_tokens=6000,
                     ),
                 ), timeout=65,

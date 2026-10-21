@@ -65,7 +65,7 @@ def rag_brief() -> LessonBrief:
             "Explain that retrieval can miss relevant material and generated answers can still be wrong.",
             "Support core factual claims with reference IDs; contradict none of the supplied notes.",
             "Include an exercise and a correct explanation that tests a learning goal.",
-            "Explain concepts before depending on them in later sections.",
+            "Use beginner-friendly English without assumed AI knowledge, and explain concepts before depending on them in later sections.",
         ], start=1)],
     )
 

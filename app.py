@@ -9,6 +9,7 @@ from pydantic import ValidationError
 
 from lessonloop.generation import Draft, generate_draft, rag_brief
 from lessonloop.gemini import GeminiModel, GenerationError
+from lessonloop.evaluation import CheckResult, Evaluation, evaluate_lesson, fingerprint, RUBRIC_VERSION
 
 ROOT = Path(__file__).resolve().parent
 
@@ -29,13 +30,28 @@ async def create_draft(key: str, model_name: str) -> Draft:
         await model.close()
 
 
-def markdown(draft: Draft) -> str:
+async def review_draft(key: str, model_name: str, draft: Draft) -> Evaluation:
+    model = GeminiModel(api_key=key, model=model_name, response_type=Evaluation)
+    try:
+        return await evaluate_lesson(model, draft.lesson, rag_brief())
+    finally:
+        await model.close()
+
+
+def current_review(draft: Draft) -> Evaluation | None:
+    if st.session_state.get('evaluation_hash') != fingerprint(draft.lesson):
+        return None
+    value = st.session_state.get('evaluation')
+    return Evaluation.model_validate(value) if value else None
+
+
+def markdown(draft: Draft, status: str = "Unreviewed draft") -> str:
     lesson = draft.lesson
     sections = [('What is RAG?', lesson.what_it_is), ('Why it matters', lesson.why_it_matters),
                 ('How it works', lesson.how_it_works), ('Worked example', lesson.worked_example),
                 ('Limitations', lesson.limitations), ('Try it yourself', lesson.exercise),
                 ('Answer explained', lesson.answer_explanation)]
-    return f'# {lesson.title}\n\nStatus: Unreviewed draft\n\n' + '\n\n'.join(f'## {name}\n\n{text}' for name, text in sections)
+    return f'# {lesson.title}\n\nStatus: {status}\n\n' + '\n\n'.join(f'## {name}\n\n{text}' for name, text in sections)
 
 
 def main() -> None:
@@ -43,7 +59,7 @@ def main() -> None:
     st.caption('LESSONLOOP / LESSON STUDIO')
     st.title('A clearer first lesson.')
     st.write('Generate an introduction to RAG for a learner starting from zero.')
-    st.info('Generation is ready. Evaluation, revisions, and learning across runs are coming next. Every draft is unreviewed.')
+    st.info('Generate a draft, then evaluate it against all nine checkpoints. Automatic revisions and learning across runs are coming next.')
     key, configured_model = settings()
     brief = rag_brief()
     with st.sidebar:
@@ -71,6 +87,8 @@ def main() -> None:
                     st.write('Preparing learner brief and reference notes.')
                     try:
                         draft = asyncio.run(create_draft(key, model_name.strip()))
+                        st.session_state.pop('evaluation', None)
+                        st.session_state.pop('evaluation_hash', None)
                         st.session_state['draft'] = draft.model_dump()
                         st.session_state['draft_model'] = model_name.strip()
                         status.update(label='Draft generated · not evaluated', state='complete', expanded=False)
@@ -86,12 +104,47 @@ def main() -> None:
         if 'draft' in st.session_state:
             draft = Draft.model_validate(st.session_state['draft'])
             st.divider()
-            st.warning('Unreviewed draft — no quality checks have run.')
+            if st.button('Evaluate lesson', type='primary', disabled=not bool(key), key='evaluate'):
+                st.session_state.pop('evaluation', None)
+                st.session_state.pop('evaluation_hash', None)
+                if not model_name.strip():
+                    st.error('Enter a Gemini model ID before evaluating.')
+                else:
+                    with st.spinner('Checking accuracy, language, examples, and teaching flow…'):
+                        try:
+                            review = asyncio.run(review_draft(key, model_name.strip(), draft))
+                            st.session_state['evaluation'] = review.model_dump()
+                            st.session_state['evaluation_hash'] = fingerprint(draft.lesson)
+                        except ValidationError:
+                            st.error('The evaluator returned an incomplete or invalid checklist. The lesson remains unreviewed. Try evaluation again.')
+                        except GenerationError as error:
+                            st.error(str(error))
+                        except Exception:
+                            st.error('Evaluation could not finish. No lesson was approved. Try again.')
+            st.caption('Evaluate makes a separate live Gemini request and may use paid quota.')
+            with st.expander('Test a deliberate error'):
+                st.write('Replace the limitations section with “RAG always gives correct answers.” Then click Evaluate lesson. This changes your current draft and clears its prior evaluation.')
+                if st.button('Insert deliberate error', key='inject_error'):
+                    draft = draft.model_copy(update={'lesson': draft.lesson.model_copy(update={'limitations': 'RAG always gives correct answers.'})})
+                    st.session_state['draft'] = draft.model_dump()
+                    st.session_state.pop('evaluation', None)
+                    st.session_state.pop('evaluation_hash', None)
+            review = current_review(draft)
+            review_status = 'Unreviewed draft'
+            if review is None:
+                st.warning('Unreviewed draft — no valid quality evaluation is attached.')
+            elif review.approved:
+                review_status = 'Approved by rubric'
+                st.success('Approved by rubric — all 9 checkpoints passed.')
+            else:
+                review_status = 'Rejected — needs revision'
+                st.error(f'Rejected — {sum(not c.passed for c in review.checks)} checkpoint(s) failed. See Quality checkpoints for feedback.')
             st.caption(f"Generated with {st.session_state.get('draft_model', 'Gemini')}. Saved in this browser session only; on a failed retry, the previous draft remains below.")
-            st.markdown(markdown(draft))
-            st.download_button('Download lesson (.md)', markdown(draft), 'rag-lesson-draft.md', 'text/markdown')
+            st.markdown(markdown(draft, review_status))
+            st.download_button('Download lesson (.md)', markdown(draft, review_status), 'rag-lesson-draft.md', 'text/markdown')
             with st.expander('Structured output'):
                 st.json(draft.model_dump())
+                st.caption('The original draft remains unreviewed; evaluation and approval are tracked in the separate report.')
                 st.download_button('Download JSON', draft.model_dump_json(indent=2), 'rag-lesson-draft.json', 'application/json')
         else:
             st.subheader('Your lesson will appear here')
@@ -106,11 +159,25 @@ def main() -> None:
             st.write(f'**{reference_id}** — {note}')
     with checks_tab:
         st.subheader('The quality bar')
-        st.caption('These are planned pass/fail requirements. They have not been automatically evaluated.')
+        review = current_review(Draft.model_validate(st.session_state['draft'])) if 'draft' in st.session_state else None
+        st.caption('Every checkpoint must pass. Invalid or missing evaluation results never approve a lesson. Model judgments can still be wrong.')
+        by_id: dict[str, CheckResult] = {check.id: check for check in review.checks} if review else {}
         for check in brief.checkpoints:
+            result = by_id.get(check.id)
+            label = ('PASS' if result.passed else 'FAIL') if result else 'Not evaluated'
             with st.container(border=True):
-                st.write(f'**{check.id} · Not evaluated**')
+                st.write(f'**{check.id} · {label}**')
                 st.write(check.condition)
+                if result:
+                    st.write('**Evidence:**', result.evidence)
+                    st.write('**Reason:**', result.reason)
+                    if not result.passed:
+                        st.write('**Required change:**', result.required_change)
+        if review:
+            report = {'rubric_version': RUBRIC_VERSION, 'lesson_sha256': st.session_state['evaluation_hash'], 'approved': review.approved, **review.model_dump()}
+            import json
+            st.download_button('Download evaluation report', json.dumps(report, indent=2), 'evaluation.json', 'application/json')
+
 
 
 if __name__ == '__main__':
