@@ -8,7 +8,7 @@ from dotenv import dotenv_values
 from pydantic import ValidationError
 
 from lessonloop.generation import Draft, generate_draft, rag_brief
-from lessonloop.gemini import GeminiModel
+from lessonloop.gemini import GeminiModel, GenerationError
 
 ROOT = Path(__file__).resolve().parent
 
@@ -77,6 +77,9 @@ def main() -> None:
                     except ValidationError:
                         status.update(label='Generation failed', state='error')
                         st.error('The response did not contain all required lesson sections. Try again.')
+                    except GenerationError as error:
+                        status.update(label='Generation failed', state='error')
+                        st.error(str(error))
                     except Exception:
                         status.update(label='Generation failed', state='error')
                         st.error('Could not generate a lesson. Check your model ID, API key, quota, and connection. No draft was approved.')
