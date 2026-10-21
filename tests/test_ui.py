@@ -34,6 +34,7 @@ def test_generate_renders_unreviewed_lesson_without_network(monkeypatch):
     monkeypatch.setattr('lessonloop.gemini.GeminiModel.complete', fake_complete)
     monkeypatch.setattr('lessonloop.gemini.GeminiModel.close', fake_close)
     app = AppTest.from_file(str(APP)).run()
+    app.checkbox[0].uncheck().run()
     app.button[0].click().run()
     assert not app.exception
     assert len(calls) == 1
@@ -56,6 +57,7 @@ def test_generation_error_is_sanitized(monkeypatch):
     monkeypatch.setattr('lessonloop.gemini.GeminiModel.complete', broken)
     monkeypatch.setattr('lessonloop.gemini.GeminiModel.close', fake_close)
     app = AppTest.from_file(str(APP)).run()
+    app.checkbox[0].uncheck().run()
     app.button[0].click().run()
     assert not app.exception
     assert 'Could not generate' in app.error[0].value
@@ -80,6 +82,7 @@ def test_evaluation_and_changed_lesson_clear_approval(monkeypatch):
     monkeypatch.setattr('lessonloop.gemini.GeminiModel.complete', fake_complete)
     monkeypatch.setattr('lessonloop.gemini.GeminiModel.close', fake_close)
     app = AppTest.from_file(str(APP)).run()
+    app.checkbox[0].uncheck().run()
     app.button[0].click().run()
     app.button(key='evaluate').click().run()
     assert not app.exception
@@ -93,3 +96,37 @@ def test_evaluation_and_changed_lesson_clear_approval(monkeypatch):
     assert not app.exception
     assert any('Rejected' in x.value for x in app.error)
     assert any('C6 · FAIL' in x.value for x in app.markdown)
+
+
+def test_automatic_workflow_revises_and_shows_log(monkeypatch):
+    import json
+    from lessonloop.evaluation import Evaluation
+    monkeypatch.setenv('GEMINI_API_KEY', 'fake-test-key')
+    monkeypatch.setenv('GEMINI_MODEL', 'fake-model')
+    reviews = []
+    writer_inputs = []
+
+    async def fake_complete(self, *, system, user):
+        if self.response_type is Evaluation:
+            reviews.append(user)
+            passing = len(reviews) > 1
+            return json.dumps({'checks': [{'id': f'C{i}', 'passed': passing or i != 5, 'evidence': 'Example', 'reason': 'Met' if passing else 'Define jargon', 'required_change': 'Explain the term'} for i in range(1, 10)]})
+        writer_inputs.append(json.loads(user))
+        content = 'First draft' if len(writer_inputs) == 1 else 'Revised draft'
+        return Lesson(**{name: content for name in Lesson.model_fields}).model_dump_json()
+
+    async def fake_close(self):
+        pass
+
+    monkeypatch.setattr('lessonloop.gemini.GeminiModel.complete', fake_complete)
+    monkeypatch.setattr('lessonloop.gemini.GeminiModel.close', fake_close)
+    app = AppTest.from_file(str(APP)).run()
+    app.button[0].click().run()
+    assert not app.exception
+    assert app.session_state['workflow']['status'] == 'approved'
+    assert len(app.session_state['workflow']['attempts']) == 2
+    assert writer_inputs[1]['failures'][0]['id'] == 'C5'
+    assert any('Attempt 1' in e.label for e in app.expander)
+    assert any('Attempt 2' in e.label for e in app.expander)
+    app.run()
+    assert len(reviews) == 2

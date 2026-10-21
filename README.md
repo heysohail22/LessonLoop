@@ -4,7 +4,7 @@ A beginner lesson generator with a planned evaluate/revise loop. This is an inde
 
 ## Current milestone
 
-The RAG learner brief, nine rubric conditions, source-linked reference notes, structured lesson contract, provider-independent async generation function, and Gemini adapter are implemented. By default the CLI displays inputs. Only `--live` calls Gemini. Manual evaluation against C1-C9 is implemented. LangGraph orchestration, automatic retries, persistent memory, and prompt improvement are future milestones. Schema validity is not a quality pass.
+The RAG learner brief, nine rubric conditions, source-linked reference notes, structured lesson contract, provider-independent async generation function, and Gemini adapter are implemented. By default the CLI displays inputs. Only `--live` calls Gemini. Manual evaluation against C1-C9 is implemented. LangGraph orchestration, bounded automatic revisions, and an attempt/rejection log are implemented. Persistent memory and prompt improvement remain future milestones. Schema validity is not a quality pass.
 
 ## Setup (uv only)
 
@@ -39,7 +39,7 @@ uv sync
 uv run streamlit run app.py
 ```
 
-Open http://localhost:8501. The UI reads GEMINI_API_KEY and GEMINI_MODEL from the project .env file, with shell variables taking precedence. It does not print credentials or modify the environment. The CLI continues to require shell variables. A model ID can also be entered in the UI. Clicking Generate makes one live request; tab changes and downloads do not generate again. This version supports RAG only. Lessons are unreviewed, remain in browser-session memory only, and can be downloaded as Markdown or JSON. Click Evaluate lesson to run a separate Gemini review. Checkpoints then show pass/fail, evidence, reasons, and required changes. Automatic retries and persistent learning are not implemented yet. Bind to localhost for local testing.
+Open http://localhost:8501. The UI reads GEMINI_API_KEY and GEMINI_MODEL from the project .env file, with shell variables taking precedence. It does not print credentials or modify the environment. The CLI continues to require shell variables. A model ID can also be entered in the UI. Clicking Generate makes one live request; tab changes and downloads do not generate again. This version supports RAG only. Lessons are unreviewed, remain in browser-session memory only, and can be downloaded as Markdown or JSON. Click Evaluate lesson to run a separate Gemini review. Checkpoints then show pass/fail, evidence, reasons, and required changes. Automatic mode runs the bounded revision workflow. Persistent learning is not implemented yet. Bind to localhost for local testing.
 
 UI tests use Streamlit AppTest and fake model responses; they never call Gemini.
 
@@ -53,4 +53,12 @@ Generate a lesson, click **Evaluate lesson**, and open **Quality checkpoints**. 
 
 For the demo, expand **Test a deliberate error**, insert the false correctness guarantee, then evaluate again. A narrow deterministic safeguard rejects this explicit guarantee under C6/C7 even if the model misses it. Other semantic judgments depend on the reviewer model. This safeguard is not a complete fact checker. The same Gemini model can write and review, with separate prompts; correlated mistakes remain possible. Reference notes are limited summaries, not a comprehensive knowledge base. Current C9 also asks the reviewer to assess language accessibility. Rubric version: rag-v1.
 
-`uv run pytest` runs only fake-model tests, including invalid/missing/duplicate checklist rejection and the deliberate-error safeguard. The full generate/evaluate/revise graph, rejection change history, durable memory, and prompt improvement remain future work.
+`uv run pytest` runs only fake-model tests, including invalid/missing/duplicate checklist rejection and the deliberate-error safeguard. The generate/evaluate/revise graph and rejection change history are implemented. Durable memory and prompt improvement remain future work.
+
+## Automatic generate → evaluate → revise workflow
+
+Automatic mode is enabled by default in the UI. **Generate lesson** runs LangGraph's `generate → evaluate` loop; the Python conditional route stops on approval or after three attempts (one original plus at most two revisions). Every revised lesson gets a full evaluation. Revisions receive the original brief and sources, previous lesson, and all failed checks with evidence and requested corrections. Up to six Gemini requests can be made per run; model transport retries are disabled. Invalid output or provider errors stop the run with `error`, without approval, preserving completed attempts. Each model call has its existing timeout; graph recursion is also bounded. Graph state is validated with Pydantic; no provider clients or secrets are stored in it.
+
+The final status is `approved`, `needs_human_review` after exhausted content retries, or `error` for an interrupted run. Uncheck automatic mode for manual generation/evaluation. **Run revisions on this draft** counts the submitted draft as attempt one, evaluates it, and allows at most two revisions. For the demo, insert the deliberate error and click this button.
+
+Attempt history shows each lesson, failed checks, reasons, requested changes, actual sections changed on the following attempt, and reevaluation results. The JSON download contains all versions and complete evaluations, so changes can be inspected directly. A changed section is not by itself proof of a successful correction. History remains in Streamlit session memory only; downloads preserve a copy, but durable cross-run memory is not yet implemented.
