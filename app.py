@@ -1,6 +1,8 @@
 """Local LessonLoop workbench. Start with uv run streamlit run app.py."""
 import asyncio
 import json
+from pathlib import Path
+import re
 
 import streamlit as st
 from pydantic import ValidationError
@@ -14,6 +16,7 @@ from lessonloop.memory import Memory
 from lessonloop.settings import settings, database_path
 from lessonloop.service import run_and_remember
 from lessonloop.evolution import propose_improvements, test_improvement
+from lessonloop.ui import STYLE, CHECK_NAMES, SECTION_NAMES, pipeline_html, outcome_summary, compare_attempts
 
 
 
@@ -46,13 +49,32 @@ async def run_full_workflow(key: str, model_name: str, *, seed: Lesson | None = 
         await reviewer.close()
 
 
-def execute_workflow(key: str, model_name: str, seed: Lesson | None = None) -> None:
+def execute_workflow(key: str, model_name: str, seed: Lesson | None = None, pipeline_slot=None) -> None:
     # Clear prior outcomes before starting so a failed new run cannot show old approval.
-    for name in ('workflow', 'draft', 'evaluation', 'evaluation_hash', 'run_id'):
+    for name in ('workflow', 'draft', 'evaluation', 'evaluation_hash', 'run_id', 'recorded_preview'):
         st.session_state.pop(name, None)
+    st.session_state['run_events'] = []
+    st.session_state['active_attempt'] = 0
+    def show_progress(message: str) -> None:
+        st.session_state['run_events'].append(message)
+        if pipeline_slot is not None:
+            match = re.search(r'Attempt (\d+)', message)
+            if match:
+                st.session_state['active_attempt'] = int(match.group(1))
+            number = st.session_state['active_attempt']
+            stage = 'check' if 'evaluating' in message else ('revise' if 'revising' in message else 'write')
+            if message.startswith('All checkpoints passed'):
+                stage = 'approved'
+            elif message.startswith('Retry limit reached'):
+                stage = 'needs_human_review'
+            elif message.startswith('Run stopped'):
+                stage = 'error'
+            pipeline_slot.markdown(pipeline_html(stage=stage, attempt=number), unsafe_allow_html=True)
+        st.write(message)
+
     with st.status('Running lesson workflow…', expanded=True) as progress:
         try:
-            run_id, result = asyncio.run(run_full_workflow(key, model_name, seed=seed, on_progress=st.write))
+            run_id, result = asyncio.run(run_full_workflow(key, model_name, seed=seed, on_progress=show_progress))
             st.session_state['run_id'] = run_id
             st.session_state['workflow'] = result.model_dump()
             st.session_state['draft_model'] = model_name
@@ -62,37 +84,72 @@ def execute_workflow(key: str, model_name: str, seed: Lesson | None = None) -> N
                 if latest.evaluation:
                     st.session_state['evaluation'] = latest.evaluation.model_dump()
                     st.session_state['evaluation_hash'] = fingerprint(latest.lesson)
+            if pipeline_slot is not None:
+                pipeline_slot.markdown(pipeline_html(stage=result.status, attempt=len(result.attempts)), unsafe_allow_html=True)
             progress.update(label={'approved':'Lesson approved', 'needs_human_review':'Needs human review — retry limit reached', 'error':'Workflow stopped with an error'}[result.status], state='complete' if result.status == 'approved' else 'error', expanded=result.status != 'approved')
         except Exception:
             progress.update(label='Workflow could not finish', state='error')
             st.error('The workflow stopped unexpectedly. No lesson was approved. Try starting a new run.')
 
 
+def load_recorded_demo() -> None:
+    """Load real captured evidence; no model call or memory training."""
+    folder = Path(__file__).resolve().parent / 'submission' / 'error-demo'
+    try:
+        result = WorkflowResult.model_validate_json((folder / 'run.json').read_text())
+        provenance = json.loads((folder / 'provenance.json').read_text())
+    except (OSError, ValueError):
+        st.error('The recorded demo is unavailable. Generate a lesson to explore a new run.')
+        return
+    for name in ('draft', 'evaluation', 'evaluation_hash', 'run_id'):
+        st.session_state.pop(name, None)
+    st.session_state['workflow'] = result.model_dump()
+    st.session_state['recorded_preview'] = True
+    st.session_state['draft_model'] = provenance['model']
+    latest = result.attempts[-1]
+    if latest.lesson:
+        st.session_state['draft'] = Draft(lesson=latest.lesson).model_dump()
+        if latest.evaluation:
+            st.session_state['evaluation'] = latest.evaluation.model_dump()
+            st.session_state['evaluation_hash'] = fingerprint(latest.lesson)
+
+
 def render_attempts() -> None:
     if 'workflow' not in st.session_state:
         return
-    import json
     result = WorkflowResult.model_validate(st.session_state['workflow'])
-    st.subheader('Attempt history & rejection log')
+    st.divider()
+    st.subheader('Follow the decisions')
+    st.caption('Read the journey from first draft to final decision. Each revision is checked against the full rubric again.')
     if result.status == 'needs_human_review':
         st.warning('Needs human review. Three attempts were evaluated; the last lesson still has failed checkpoints.')
     elif result.status == 'error':
         st.error('This run stopped with an error. No lesson was approved.')
+    rows = []
+    for attempt in result.attempts:
+        label = 'Error' if attempt.error else ('Passed' if attempt.evaluation and attempt.evaluation.approved else 'Rejected')
+        rows.append({'Attempt': attempt.number, 'Decision':label,
+                     'Failed checks': ', '.join(c.id for c in attempt.evaluation.checks if not c.passed) if attempt.evaluation else 'Not evaluated',
+                     'Changed sections': ', '.join(SECTION_NAMES.get(section,section) for section in attempt.changed_sections) or ('First draft' if attempt.number==1 else 'No changes')})
+    st.dataframe(rows, hide_index=True, width='stretch')
+    compare_attempts(result)
+    st.markdown('#### Full attempt history & rejection log')
     for attempt in result.attempts:
         label = 'Error' if attempt.error else ('Passed' if attempt.evaluation and attempt.evaluation.approved else 'Rejected')
         with st.expander(f'Attempt {attempt.number} · {label}', expanded=bool(attempt.error)):
-            if attempt.number > 1:
-                st.write('**Sections changed from previous attempt:**', ', '.join(attempt.changed_sections) or 'No sections changed.')
-                st.caption('Changes are detected by comparing section text; a change alone does not prove a fix.')
             if attempt.error:
                 st.error(attempt.error)
             if attempt.evaluation:
-                for check in attempt.evaluation.checks:
-                    if not check.passed:
-                        st.write(f'**{check.id} failed:** {check.reason}')
-                        st.write('**Evidence:**', check.evidence)
-                        st.write('**Requested correction:**', check.required_change)
-                st.json(attempt.evaluation.model_dump())
+                failed = [check for check in attempt.evaluation.checks if not check.passed]
+                if not failed:
+                    st.success('All nine requirements passed in this attempt.')
+                for check in failed:
+                    st.markdown(f'**{check.id} · {CHECK_NAMES[check.id]} — failed**')
+                    st.write('**What the reviewer found:**', check.evidence)
+                    st.write('**Why it failed:**', check.reason)
+                    st.write('**Instruction for the next draft:**', check.required_change)
+                st.caption('Complete structured review')
+                st.json(attempt.evaluation.model_dump(), expanded=False)
             if attempt.lesson:
                 st.markdown(markdown(Draft(lesson=attempt.lesson), label))
     st.download_button('Download workflow & rejection log', json.dumps(result.model_dump(mode='json'), indent=2), 'lessonloop-run.json', 'application/json')
@@ -111,8 +168,13 @@ async def experiment(key: str, model_name: str, prompt_id: str) -> dict:
 def render_memory(key: str, model_name: str) -> None:
     memory = Memory(database_path())
     active = memory.active_prompt()
-    st.subheader('Memory across runs')
+    st.subheader('What the system remembers')
     st.caption('SQLite keeps automatic runs, feedback, and prompt versions after restart. This is a local single-user workbench.')
+    versions = memory.prompts()
+    stats = st.columns(3)
+    stats[0].metric('Recent saved runs', len(memory.runs()))
+    stats[1].metric('Improvement proposals', sum(p['id'] != 'base-v1' for p in versions))
+    stats[2].metric('Accepted improvements', sum(p['status'] == 'accepted' and p['id'] != 'base-v1' for p in versions))
     st.write('**Active prompt:**', active['id'])
     st.write(active['instruction'] or 'Original teaching instructions; no learned additions yet.')
     runs = memory.runs()
@@ -124,6 +186,7 @@ def render_memory(key: str, model_name: str) -> None:
             st.download_button('Download saved run', saved['result'], f'{run_id}.json', 'application/json')
             if st.button('Open saved run', key='restore_run'):
                 result = WorkflowResult.model_validate_json(saved['result'])
+                st.session_state.pop('recorded_preview', None)
                 st.session_state['workflow'] = result.model_dump()
                 st.session_state['run_id'] = run_id
                 st.session_state['draft_model'] = saved['model']
@@ -150,11 +213,15 @@ def render_memory(key: str, model_name: str) -> None:
                     st.error('Enter feedback before saving.')
     else:
         st.info('Run the automatic workflow to build persistent history.')
-    st.subheader('Learn from repeated failures')
+    st.divider()
+    st.subheader('How failures become better instructions')
+    st.markdown('**Notice a pattern → propose guidance → compare prompts → adopt only if better**')
     st.caption('Two distinct normal runs must fail the same check before a proposal is created. Demo runs do not train memory. The rubric never changes to make passing easier.')
     failures = memory.repeated_failures()
     if failures:
-        st.json({checkpoint: len(ids) for checkpoint, ids in failures.items()})
+        st.dataframe([{'Checkpoint': checkpoint, 'Teaching rule': CHECK_NAMES[checkpoint], 'Distinct failing runs':len(ids), 'Evidence threshold': 'Ready for proposal' if len(ids)>=2 else 'Needs one more run'} for checkpoint,ids in sorted(failures.items())], hide_index=True, width='stretch')
+    else:
+        st.info('No repeated normal-run failures yet. The original prompt stays active until there is evidence to test a change.')
     if st.button('Find improvement proposals'):
         propose_improvements(memory)
     for prompt in memory.prompts():
@@ -164,7 +231,14 @@ def render_memory(key: str, model_name: str) -> None:
             st.write(prompt['instruction'])
             st.write('**Failure evidence (run IDs):**', json.loads(prompt['evidence']))
             if prompt['experiment']:
-                st.json(json.loads(prompt['experiment']))
+                report = json.loads(prompt['experiment'])
+                if 'baseline_failures' in report:
+                    left, right = st.columns(2)
+                    left.metric('Old prompt · failed checks', report['baseline_failures'])
+                    right.metric('Proposed prompt · failed checks', report['candidate_failures'])
+                    st.write('**Adoption decision:**', prompt['status'])
+                    st.caption('Target failures and total failures must decrease, with no observed checkpoint regressions.')
+                st.json(report, expanded=False)
             if prompt['status'] in ('proposed', 'error') and prompt['parent_id'] == active['id']:
                 st.caption('Tests old and proposed prompts on two fixed scenarios: eight paid requests maximum. Adoption requires fewer target and total failures with no observed checkpoint regressions.')
                 if st.button('Test and adopt if better', key='test_' + prompt['id'], disabled=not bool(key and model_name)):
@@ -198,15 +272,18 @@ def markdown(draft: Draft, status: str = "Unreviewed draft") -> str:
 
 def main() -> None:
     st.set_page_config(page_title='LessonLoop · Lesson studio', page_icon='📖', layout='wide')
-    st.caption('LESSONLOOP / LESSON STUDIO')
-    st.title('A clearer first lesson.')
-    st.write('Generate an introduction to RAG for a learner starting from zero.')
-    st.info('Generate, evaluate, and revise automatically. A lesson gets at most three attempts. Runs are saved locally; tested prompt improvements carry into future runs.')
+    st.markdown(STYLE, unsafe_allow_html=True)
+    st.markdown('<div class="ll-kicker">LESSONLOOP / THE LESSON WORKBENCH</div>', unsafe_allow_html=True)
+    st.title('From first draft to ready to teach.')
+    st.markdown('<div class="ll-intro">Watch a beginner lesson get written, checked, and improved. Every decision has evidence. Every run has a stopping rule.</div>', unsafe_allow_html=True)
+    workflow_panel = st.empty()
     key, configured_model = settings()
     brief = rag_brief()
     with st.sidebar:
         st.subheader('Your workspace')
-        st.caption('Local development · Gemini')
+        st.caption('LOCAL WORKSPACE · GEMINI')
+        st.write('**Your workflow**')
+        st.write('1. Generate a lesson\n2. Inspect the decision\n3. Compare revisions\n4. Explore saved memory')
         if key:
             st.success('API key configured')
         else:
@@ -216,23 +293,31 @@ def main() -> None:
         st.caption('The API key stays on the server and is never displayed here.')
     lesson_tab, brief_tab, checks_tab, memory_tab = st.tabs(['Create lesson', 'Teaching brief', 'Quality checkpoints', 'Memory & improvements'])
     with lesson_tab:
+        with st.container(border=True):
+            introduction, demo = st.columns([3, 1])
+            introduction.markdown('**See a real repair before making a live request.**')
+            introduction.caption('The saved demo shows a rejected claim, the feedback, and the corrected lesson. No API calls.')
+            if demo.button('Load recorded repair demo', key='load_demo', width='stretch'):
+                load_recorded_demo()
+        st.markdown('### Create a lesson')
         automatic = st.checkbox('Automatically evaluate and revise', value=True, key='automatic_mode', help='Up to 3 attempts and 6 Gemini requests. Turn off to inspect a single draft manually.')
         with st.form('generate'):
             st.selectbox('Topic', [brief.topic], help='This first version supports RAG. More topics need their own reference packs.')
             model_name = st.text_input('Gemini model', value=configured_model, placeholder='Enter a model ID available to your account')
             st.caption('Automatic mode uses up to six live Gemini requests and may use paid quota.')
-            submitted = st.form_submit_button('Generate lesson', type='primary', disabled=not bool(key))
+            submitted = st.form_submit_button('Generate lesson', key='generate_submit', type='primary', disabled=not bool(key))
         if submitted:
             if not model_name.strip():
                 st.error('Enter a Gemini model ID, or set GEMINI_MODEL in .env.')
             else:
                 if automatic:
-                    execute_workflow(key, model_name.strip())
+                    execute_workflow(key, model_name.strip(), pipeline_slot=workflow_panel)
                 else:
                     with st.status('Generating your lesson…', expanded=True) as status:
                         st.write('Preparing learner brief and reference notes.')
                         try:
                             draft = asyncio.run(create_draft(key, model_name.strip()))
+                            st.session_state.pop('recorded_preview', None)
                             st.session_state.pop('workflow', None)
                             st.session_state.pop('run_id', None)
                             st.session_state.pop('evaluation', None)
@@ -252,13 +337,17 @@ def main() -> None:
         if 'draft' in st.session_state:
             draft = Draft.model_validate(st.session_state['draft'])
             st.divider()
+            if st.session_state.get('recorded_preview'):
+                st.info('Recorded live demonstration · you are exploring saved evidence, not a new model call. Changing this draft clears its saved approval.')
+            st.markdown('### Your lesson and its decision')
             if st.button('Run revisions on this draft', key='revise_workflow', disabled=not bool(key)):
                 if model_name.strip():
-                    execute_workflow(key, model_name.strip(), seed=draft.lesson)
+                    execute_workflow(key, model_name.strip(), seed=draft.lesson, pipeline_slot=workflow_panel)
                     st.rerun()
                 else:
                     st.error('Enter a Gemini model ID before starting revisions.')
             if st.button('Evaluate lesson', type='primary', disabled=not bool(key), key='evaluate'):
+                st.session_state.pop('recorded_preview', None)
                 st.session_state.pop('workflow', None)
                 st.session_state.pop('run_id', None)
                 st.session_state.pop('evaluation', None)
@@ -283,11 +372,14 @@ def main() -> None:
                 if st.button('Insert deliberate error', key='inject_error'):
                     draft = draft.model_copy(update={'lesson': draft.lesson.model_copy(update={'limitations': 'RAG always gives correct answers.'})})
                     st.session_state['draft'] = draft.model_dump()
+                    st.session_state.pop('recorded_preview', None)
                     st.session_state.pop('workflow', None)
                     st.session_state.pop('run_id', None)
                     st.session_state.pop('evaluation', None)
                     st.session_state.pop('evaluation_hash', None)
             review = current_review(draft)
+            report = WorkflowResult.model_validate(st.session_state['workflow']) if 'workflow' in st.session_state else None
+            outcome_summary(report, review)
             review_status = 'Unreviewed draft'
             if review is None:
                 st.warning('Unreviewed draft — no valid quality evaluation is attached.')
@@ -305,11 +397,21 @@ def main() -> None:
                 st.caption('The original draft remains unreviewed; evaluation and approval are tracked in the separate report.')
                 st.download_button('Download JSON', draft.model_dump_json(indent=2), 'rag-lesson-draft.json', 'application/json')
         else:
-            st.subheader('Your lesson will appear here')
-            st.write('You will get an explanation, a worked example, limitations, and a practice question.')
+            st.markdown('### Your lesson starts here')
+            st.write('Load the recorded demo to explore the system, or generate a new RAG lesson. The final lesson, reviewer evidence, and revision history will appear here.')
         render_attempts()
+        final = WorkflowResult.model_validate(st.session_state['workflow']) if 'workflow' in st.session_state else None
+        stage, count = ('ready', 0)
+        if final:
+            stage, count = final.status, len(final.attempts)
+        elif 'draft' in st.session_state:
+            last_review = current_review(Draft.model_validate(st.session_state['draft']))
+            stage = ('approved' if last_review.approved else 'rejected') if last_review else 'draft_ready'
+        workflow_panel.markdown(pipeline_html(stage=stage, attempt=count), unsafe_allow_html=True)
     with brief_tab:
-        st.subheader('What this lesson should teach')
+        st.subheader('The plan before the first word')
+        st.write('These inputs guide the writer. They are separate from the reviewer’s decision about the finished lesson.')
+        st.markdown('#### What the learner should be able to do')
         for goal in brief.goals:
             st.write(f'• {goal}')
         st.subheader('Reference notes')
@@ -317,21 +419,31 @@ def main() -> None:
         for reference_id, note in brief.references.items():
             st.write(f'**{reference_id}** — {note}')
     with checks_tab:
-        st.subheader('The quality bar')
+        st.subheader('Why did this lesson pass or fail?')
+        st.write('Each checkpoint is a separate requirement. All nine must pass; there is no average score.')
         review = current_review(Draft.model_validate(st.session_state['draft'])) if 'draft' in st.session_state else None
         st.caption('Every checkpoint must pass. Invalid or missing evaluation results never approve a lesson. Model judgments can still be wrong.')
         by_id: dict[str, CheckResult] = {check.id: check for check in review.checks} if review else {}
+        view = st.radio('Show checkpoints', ['All', 'Failed', 'Passed'], horizontal=True, key='checkpoint_filter')
+        visible = 0
         for check in brief.checkpoints:
             result = by_id.get(check.id)
+            if view == 'Failed' and (not result or result.passed):
+                continue
+            if view == 'Passed' and (not result or not result.passed):
+                continue
+            visible += 1
             label = ('PASS' if result.passed else 'FAIL') if result else 'Not evaluated'
             with st.container(border=True):
-                st.write(f'**{check.id} · {label}**')
+                st.write(f'**{check.id} · {label}** — {CHECK_NAMES[check.id]}')
                 st.write(check.condition)
                 if result:
                     st.write('**Evidence:**', result.evidence)
                     st.write('**Reason:**', result.reason)
                     if not result.passed:
                         st.write('**Required change:**', result.required_change)
+        if not visible:
+            st.info('No checkpoints match this filter. Unevaluated requirements are shown under All.')
         if review:
             report = {'rubric_version': RUBRIC_VERSION, 'lesson_sha256': st.session_state['evaluation_hash'], 'approved': review.approved, **review.model_dump()}
             import json

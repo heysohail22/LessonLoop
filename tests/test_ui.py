@@ -12,9 +12,9 @@ def test_missing_key_disables_live_generation(monkeypatch):
     monkeypatch.delenv('GEMINI_API_KEY', raising=False)
     # Prevent local developer credentials from affecting the test.
     monkeypatch.setattr('lessonloop.settings.dotenv_values', lambda *a, **kw: {})
-    app = AppTest.from_file(str(APP)).run()
+    app = AppTest.from_file(str(APP), default_timeout=10).run()
     assert not app.exception
-    assert app.button[0].disabled
+    assert app.button(key='generate_submit').disabled
     assert len(app.tabs) == 4
     assert any('Not evaluated' in item.value for item in app.markdown)
 
@@ -33,9 +33,9 @@ def test_generate_renders_unreviewed_lesson_without_network(monkeypatch):
 
     monkeypatch.setattr('lessonloop.gemini.GeminiModel.complete', fake_complete)
     monkeypatch.setattr('lessonloop.gemini.GeminiModel.close', fake_close)
-    app = AppTest.from_file(str(APP)).run()
+    app = AppTest.from_file(str(APP), default_timeout=10).run()
     app.checkbox[0].uncheck().run()
-    app.button[0].click().run()
+    app.button(key='generate_submit').click().run()
     assert not app.exception
     assert len(calls) == 1
     assert app.session_state['draft']['status'] == 'unreviewed'
@@ -56,9 +56,9 @@ def test_generation_error_is_sanitized(monkeypatch):
 
     monkeypatch.setattr('lessonloop.gemini.GeminiModel.complete', broken)
     monkeypatch.setattr('lessonloop.gemini.GeminiModel.close', fake_close)
-    app = AppTest.from_file(str(APP)).run()
+    app = AppTest.from_file(str(APP), default_timeout=10).run()
     app.checkbox[0].uncheck().run()
-    app.button[0].click().run()
+    app.button(key='generate_submit').click().run()
     assert not app.exception
     assert 'Could not generate' in app.error[0].value
     assert 'secret-provider-detail' not in app.error[0].value
@@ -81,9 +81,9 @@ def test_evaluation_and_changed_lesson_clear_approval(monkeypatch):
 
     monkeypatch.setattr('lessonloop.gemini.GeminiModel.complete', fake_complete)
     monkeypatch.setattr('lessonloop.gemini.GeminiModel.close', fake_close)
-    app = AppTest.from_file(str(APP)).run()
+    app = AppTest.from_file(str(APP), default_timeout=10).run()
     app.checkbox[0].uncheck().run()
-    app.button[0].click().run()
+    app.button(key='generate_submit').click().run()
     app.button(key='evaluate').click().run()
     assert not app.exception
     assert any('Approved by rubric' in x.value for x in app.success)
@@ -120,8 +120,8 @@ def test_automatic_workflow_revises_and_shows_log(monkeypatch):
 
     monkeypatch.setattr('lessonloop.gemini.GeminiModel.complete', fake_complete)
     monkeypatch.setattr('lessonloop.gemini.GeminiModel.close', fake_close)
-    app = AppTest.from_file(str(APP)).run()
-    app.button[0].click().run()
+    app = AppTest.from_file(str(APP), default_timeout=10).run()
+    app.button(key='generate_submit').click().run()
     assert not app.exception
     assert app.session_state['workflow']['status'] == 'approved'
     assert len(app.session_state['workflow']['attempts']) == 2
@@ -143,7 +143,7 @@ def test_saved_run_restores_in_new_ui_session_and_feedback_persists(monkeypatch)
     run_id=memory.start_run('test-model',rag_brief().model_dump(),'base-v1')
     result=WorkflowResult(status='approved', attempts=[Attempt(number=1,lesson=Lesson(**{field:'Saved lesson' for field in Lesson.model_fields}),evaluation=review)])
     memory.finish_run(run_id,result)
-    app=AppTest.from_file(str(APP)).run()
+    app=AppTest.from_file(str(APP), default_timeout=10).run()
     assert not app.exception
     assert 'draft' not in app.session_state
     app.button(key='restore_run').click().run()
@@ -154,3 +154,43 @@ def test_saved_run_restores_in_new_ui_session_and_feedback_persists(monkeypatch)
     app.button(key='FormSubmitter:feedback-Save feedback').click().run()
     assert not app.exception
     assert Memory(database_path()).repeated_failures()['C5']==[run_id]
+
+
+def test_recorded_demo_explains_repair_without_model_calls(monkeypatch):
+    from lessonloop.memory import Memory
+    from lessonloop.settings import database_path
+    monkeypatch.delenv('GEMINI_API_KEY', raising=False)
+    monkeypatch.setattr('lessonloop.settings.dotenv_values', lambda *a, **kw: {})
+    calls=[]
+    async def should_not_call(self, **kwargs):
+        calls.append(kwargs)
+        raise AssertionError('Recorded replay must not call Gemini')
+    monkeypatch.setattr('lessonloop.gemini.GeminiModel.complete', should_not_call)
+    app=AppTest.from_file(str(APP), default_timeout=10).run()
+    app.button(key='load_demo').click().run()
+    assert not app.exception
+    assert app.session_state['recorded_preview']
+    assert len(app.session_state['workflow']['attempts'])==2
+    assert any('Recorded live demonstration' in info.value for info in app.info)
+    assert any('RAG always gives correct answers' in text.value for text in app.markdown)
+    assert app.selectbox(key='compare_revision').value==2
+    assert app.selectbox(key='compare_section_2').value=='limitations'
+    assert any(metric.value=='9 / 9' for metric in app.metric)
+    assert Memory(database_path()).runs()==[]
+    app.radio(key='checkpoint_filter').set_value('Failed').run()
+    assert not app.exception
+    assert any('No checkpoints match this filter' in info.value for info in app.info)
+    assert calls==[]
+
+
+def test_pipeline_does_not_claim_unevaluated_steps_completed():
+    from lessonloop.ui import pipeline_html
+    html=pipeline_html(stage='ready')
+    assert '01 / PLAN · Ready' in html
+    assert '03 / CHECK · Waiting' in html
+    html=pipeline_html(stage='draft_ready')
+    assert '03 / CHECK · Ready for review' in html
+    assert '03 / CHECK · In progress' not in html
+    html=pipeline_html(stage='approved', attempt=1)
+    assert '04 / REVISE · Not needed' in html
+    assert '05 / DECIDE · Complete' in html

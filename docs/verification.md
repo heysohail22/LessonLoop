@@ -43,3 +43,7 @@
 - Record the face-visible Loom yourself using `docs/loom-guide.md`.
 - Publish your reviewed local code to your repository when ready; it was kept local at your request.
 - Upload the final Markdown lesson to Google Docs or Notion under your own account to obtain the required document link. The connected Google accounts were not yours and were not used.
+
+## Visual walkthrough UI upgrade
+
+The upgraded UI adds a five-stage progress display, a How it works explorer, recorded live-demo replay, decision metrics, side-by-side revision comparison and exact text differences, checkpoint filters, and clearer memory/benchmark summaries. The suite now has **45 passing tests**, including no-model-call replay and unchanged persistent history during playback. Type checking reports zero diagnostics. No connected browser surface was available for screenshot inspection; this verification uses Streamlit AppTest and local server health. No paid calls were made for the UI upgrade.
